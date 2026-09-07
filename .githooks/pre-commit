@@ -1,0 +1,20 @@
+#!/bin/sh
+# Pre-commit hook — Web_Scraper
+# Jalankan validator Trio Dokumen (prd/file/database) sebelum commit.
+# Exit non-zero => ada drift dokumen => blokir commit sampai diperbaiki.
+#
+# Install (sekali):  git config core.hooksPath .githooks
+
+echo "[pre-commit] Verifikasi sinkronisasi dokumen (prd/file/database)..."
+PY="venv/Scripts/python.exe"
+if [ ! -f "$PY" ]; then
+  PY="python"
+fi
+if "$PY" tools/check_docs_sync.py --quiet; then
+  echo "[pre-commit] OK — dokumen sinkron."
+  exit 0
+else
+  echo "[pre-commit] GAGAL — prd.md / file.md / database.md tidak sinkron dengan kode."
+  echo "[pre-commit] Perbaiki dokumen (atau file yang hilang) lalu coba commit lagi."
+  exit 1
+fi

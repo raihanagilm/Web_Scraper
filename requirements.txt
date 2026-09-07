@@ -1,0 +1,26 @@
+# Core
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+
+# Database
+sqlalchemy>=2.0.34
+pymysql>=1.1.1
+cryptography>=43.0.1          # SSL/TLS for PyMySQL (abi3 wheel, support 3.14)
+
+# Auth
+bcrypt>=4.2.0
+itsdangerous>=2.2.0           # signed session cookies
+
+# Scraping
+playwright>=1.47
+beautifulsoup4>=4.12.3
+requests>=2.32.3
+
+# Export (openpyxl langsung — tanpa pandas, kompatibel Python 3.14)
+openpyxl>=3.1.5
+
+# Config
+python-dotenv>=1.0.1
+pydantic>=2.9
+pydantic-settings>=2.5

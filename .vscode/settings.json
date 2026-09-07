@@ -1,0 +1,27 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/venv/Scripts/python.exe",
+  "python.analysis.extraPaths": ["./backend"],
+  "pylance": {
+    "disableMissingImportsOnCodeAnalysis": false
+  },
+  "cline.hooks": {
+    "ON_TASK_START": [
+      {
+        "hookId": "check-docs-sync-preflight",
+        "type": "command",
+        "name": "Pre-flight: baca & verifikasi Trio Dokumen (prd.md → file.md → database.md)",
+        "command": "venv/Scripts/python.exe tools/check_docs_sync.py --quiet",
+        "description": "Workflow wajib: pastikan prd.md, file.md (struktur & jalan kode) dan database.md (skema) sinkron dengan kode sebelum task dimulai. Exit non-zero = ada drift → perbaiki dokumen dulu."
+      }
+    ],
+    "ON_TASK_COMPLETION": [
+      {
+        "hookId": "check-docs-sync-post",
+        "type": "command",
+        "name": "Verify dokumen tetap sinkron setelah task",
+        "command": "venv/Scripts/python.exe tools/check_docs_sync.py --quiet",
+        "description": "Memastikan perubahan kode tidak membuat trio dokumen usang."
+      }
+    ]
+  }
+}
