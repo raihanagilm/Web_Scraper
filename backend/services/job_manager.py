@@ -17,12 +17,14 @@ from backend.services import storage_service as store
 # Registry scraper: source key -> class
 from backend.services.scrapers.dapodik import DapodikScraper
 from backend.services.scrapers.gmaps import GmapsScraper
+from backend.services.scrapers.google import GoogleScraper
 from backend.services.scrapers.jobstreet import JobstreetScraper
 from backend.services.scrapers.glints import GlintsScraper
 from backend.services.scrapers.lpse import LpseScraper
 
 SCRAPER_REGISTRY = {
     "gmaps": GmapsScraper,
+    "google": GoogleScraper,     # Enrichment Kontak Umum (WA/Telp, Email, Web, IG)
     "dapodik": DapodikScraper,   # M2 — enrichment Sekolah (NPSN & kepsek)
     "lpse": LpseScraper,
     "jobstreet": JobstreetScraper,
@@ -57,7 +59,7 @@ class JobManager:
         self._threads: dict[str, threading.Thread] = {}
         self._last_progress: dict[str, float] = {}
 
-    def start(self, source: str, category: str, city: str, max_results: int = 0) -> dict:
+    def start(self, source: str, category: str, city: str, max_results: int = 0, job_id: str | None = None) -> dict:
         idx_max = max_results or None
 
         # Untuk enrichment: kumpulkan kandidat seed (lead gmaps kategori+kota
@@ -81,18 +83,32 @@ class JobManager:
 
         db = SessionLocal()
         try:
-            job = store.create_job(db, source, category, city, eff_max)
+            job = store.find_or_create_job(db, source, category, city, eff_max, job_id=job_id)
             job_id = job.id
         finally:
             db.close()
 
+        # Cek apakah job spesifik ini sedang aktif berjalan
+        if job_id in self._running and self._running[job_id] is not None:
+            t = self._threads.get(job_id)
+            if t and t.is_alive():
+                raise ValueError(f"Job '{job_id}' sedang berjalan.")
+
         cls = ScraperRegistry.get_class(source)
         if source == "dapodik":
-            # Dapodik mencari per NAMA SEKOLAH → kirim daftar target kandidat
+            # Dapodik mencari per nama entitas target yang butuh enrichment via Playwright headful
             scraper = cls(
                 category=category, city=city, max_results=eff_max,
-                targets=targets,
+                targets=targets, job_id=job_id,
             )
+        elif source == "google":
+            # Google web search enrichment via Playwright browser headful
+            scraper = cls(
+                category=category, city=city, max_results=eff_max,
+                targets=targets, job_id=job_id,
+            )
+        elif source in ("gmaps", "jobstreet", "glints", "lpse"):
+            scraper = cls(category=category, city=city, max_results=eff_max, job_id=job_id)
         else:
             scraper = cls(category=category, city=city, max_results=eff_max)
         self._running[job_id] = scraper
@@ -112,7 +128,11 @@ class JobManager:
     def _on_progress(self, job_id: str, progress: int, total: int, message: str) -> None:
         db = SessionLocal()
         try:
-            store.update_job(db, job_id, progress=progress, total_found=total)
+            job = store.get_job(db, job_id)
+            current_found = (job.total_found or 0) if job else 0
+            # Pertahankan total_found tertinggi (misal listing Maps 120 jangan tertimpa oleh raw_items 50 saat simpan DB)
+            preserved_found = max(current_found, total) if total > 0 else current_found
+            store.update_job(db, job_id, progress=progress, total_found=preserved_found)
             if message:
                 store.append_job_log(db, job_id, message)
             self._last_progress[job_id] = time.time()
@@ -157,10 +177,17 @@ class JobManager:
         benar-benar terambil/terpindah ke DB) — berbeda dari `total_found`
         yang hanya berapa hasil yang diterrakan di situs.
         """
-        stat = store.save_raw_items(db, raw_items, source=scraper.source)
+        if raw_items:
+            self._on_progress(job_id, 0, len(raw_items), f"Menyimpan {len(raw_items)} data dari browser ke database...")
+        stat = store.save_raw_items(
+            db,
+            raw_items,
+            source=scraper.source,
+            progress_cb=lambda prog, tot, msg: self._on_progress(job_id, prog, tot, msg),
+        )
         created, updated = stat.get("created", 0), stat.get("updated", 0)
         store.update_job(db, job_id, items_created=created, items_updated=updated)
-        store.append_job_log(db, job_id, f"Tersimpan: {created} baru, {updated} update.")
+        store.append_job_log(db, job_id, f"Tersimpan ke database: {created} baru, {updated} update.")
         if scraper.is_cancelled():
             # Status sudah "cancelled" (diset JobManager.cancel) —
             # jangan timpa menjadi "completed".
@@ -169,16 +196,20 @@ class JobManager:
                 f"Job dihentikan — {created} baru, {updated} update tercatat sebelum berhenti.",
             )
         else:
-            store.update_job(db, job_id, status="completed", progress=len(raw_items), total_found=len(raw_items), finished_at=datetime.utcnow())
+            current_job = store.get_job(db, job_id)
+            preserved_found = max(current_job.total_found if current_job else 0, len(raw_items))
+            store.update_job(db, job_id, status="completed", progress=len(raw_items), total_found=preserved_found, finished_at=datetime.utcnow())
 
     def _run_enrichment(self, db, job_id: str, scraper, raw_items) -> None:
-        """Enrichment (jobstreet/glints/lpse/dapodik): cocokkan hasil ke lead seed
+        """Enrichment (jobstreet/glints/lpse/dapodik/google): cocokkan hasil ke lead seed
         & isi hanya field kosong — TIDAK membuat lead baru.
 
         Target lead diambil dari DB berdasar `category` & `city` input user
         (liat enrichment_service.find_incomplete_leads). Jumlah target dibatasi
         `scraper.max_results` (maks. hasil). Progress = jumlah lead yang diisi.
         """
+        if raw_items:
+            self._on_progress(job_id, 0, len(raw_items), f"Mencocokkan {len(raw_items)} data enrichment ke database...")
         try:
             result = enrich.match_and_merge(
                 db,

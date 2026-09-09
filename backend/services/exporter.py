@@ -14,6 +14,7 @@ EXPORT_DIR = Path(__file__).resolve().parent.parent / "data" / "exports"
 # Base columns (label Excel) sesuai tabel Results (20 kolom)
 BASE_COLUMNS = [
     ("no", "No"),
+    ("kode", "Kode ID"),
     ("nama_instansi", "Nama Instansi"),
     ("kategori", "Bidang Usaha / Kategori"),
     ("telp", "No. WA / Telephon"),
@@ -22,12 +23,14 @@ BASE_COLUMNS = [
     ("kota", "Kota"),
     ("link_gmaps", "Link Gmaps"),
     ("website", "Link Website"),
-    ("sosmed", "Akun Media Sosial"),
+    ("instagram", "Instagram"),
+    ("facebook", "Facebook"),
+    ("linkedin", "LinkedIn"),
+    ("twitter_x", "Twitter / X"),
+    ("tiktok", "TikTok"),
+    ("sosmed", "Media Sosial Lainnya"),
     ("npsn", "NPSN"),
     ("nama_kepsek", "Nama Kepsek"),
-    ("posisi_rekrutmen", "Posisi Rekrutmen"),
-    ("deskripsi_it", "Deskripsi IT"),
-    ("penanggung_jawab", "Penanggung Jawab"),
     ("link_source", "Link Kemendikdasmen"),
     ("source", "Sumber"),
     ("status", "Status"),
@@ -36,9 +39,9 @@ BASE_COLUMNS = [
 # Kolom tambahan sesuai sumber (muncul bila ada isi)
 EXTRA_COLUMNS = {
     "dapodik": [("npsn", "NPSN"), ("nama_kepsek", "Nama Kepsek")],
-    "jobstreet": [("posisi_rekrutmen", "Posisi Rekrutmen"), ("deskripsi_it", "Deskripsi IT")],
-    "glints": [("posisi_rekrutmen", "Posisi Rekrutmen"), ("deskripsi_it", "Deskripsi IT")],
-    "lpse": [("penanggung_jawab", "Penanggung Jawab")],
+    "jobstreet": [],
+    "glints": [],
+    "lpse": [],
     "gmaps": [],
 }
 

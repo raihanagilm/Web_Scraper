@@ -141,7 +141,7 @@ def check(quiet: bool) -> int:
             problems.append(f"  [DRIFT] database.md tabel '{t}' tidak ada di model SQLAlchemy")
 
     if not quiet:
-        print("=== Pre-flight Trio Dokumen (prd.md → file.md → database.md) ===")
+        print("=== Pre-flight Trio Dokumen (prd.md -> file.md -> database.md) ===")
         for name, label in DOCS.items():
             ok = "OK" if (ROOT / name).is_file() else "MISSING"
             print(f"  [{ok}] {name} ({label})")

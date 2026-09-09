@@ -4,8 +4,11 @@ Sumber: portal LPSE (SPSE v4) daerah, pola host lpse.{kota}.go.id
 (varian: {kota}kota / {kota}kab). Lead = instansi/pemilik anggaran;
 link tender terakhir ke `link_source`.
 """
+import os
 import re
+import tempfile
 import urllib.parse
+import uuid
 
 from playwright.sync_api import sync_playwright
 
@@ -21,8 +24,22 @@ AGENCY_HINT = re.compile(
 class LpseScraper(BaseScraper):
     source = "lpse"
 
-    def __init__(self, category: str = "pengadaan", city: str = "salatiga", max_results: int = 100):
+    def __init__(self, category: str = "pengadaan", city: str = "salatiga", max_results: int = 100, job_id: str | None = None):
         super().__init__(source=self.source, category=category, city=city, max_results=max_results)
+        self.job_id = job_id
+        self._page = None
+
+    def is_alive(self) -> bool:
+        try:
+            return self._page is None or not self._page.is_closed()
+        except Exception:
+            return True
+
+    def _profile_dir(self) -> str:
+        clean_id = re.sub(r'[^a-zA-Z0-9]+', '_', self.job_id or uuid.uuid4().hex[:8])
+        worker_dir = os.path.join(tempfile.gettempdir(), "playwright_lpse_workers", f"worker_{clean_id}")
+        os.makedirs(worker_dir, exist_ok=True)
+        return worker_dir
 
     def _candidate_urls(self) -> list[str]:
         city = re.sub(r"\s+", "", self.city.strip().lower())
@@ -41,11 +58,13 @@ class LpseScraper(BaseScraper):
         with sync_playwright() as p:
             context = p.chromium.launch_persistent_context(
                 user_data_dir=self._profile_dir(),
-                headless=True,  # SPSE umumnya tanpa proteksi bot
+                headless=False,
                 channel="chrome",
                 ignore_https_errors=True,
+                args=["--start-maximized"],
             )
             page = context.new_page()
+            self._page = page
             try:
                 rows = None
                 for url in self._candidate_urls():
@@ -85,7 +104,6 @@ class LpseScraper(BaseScraper):
                         "kategori": self.category,
                         "kota": self.city,
                         "link_source": agg["link"],
-                        "deskripsi_it": f"{agg['paket']} paket pengadaan aktif" if agg["paket"] > 1 else "",
                         "status": "New",
                     }
                     for agency, agg in by_agency.items()

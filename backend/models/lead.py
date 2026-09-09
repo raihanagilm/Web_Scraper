@@ -16,6 +16,7 @@ class Lead(Base):
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    kode = Column(String(50), unique=True, nullable=True, index=True)
     source = Column(Enum("gmaps", "dapodik", "lpse", "jobstreet", "glints", name="source_enum"), nullable=False)
     priority = Column(Enum("high", "medium", name="priority_enum"), nullable=False, default="medium")
 
@@ -23,13 +24,18 @@ class Lead(Base):
     nama_instansi = Column(String(255), nullable=False, default="")
     category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
     telp = Column(String(20), default="")
-    email = Column(String(255), default="")
+    email = Column(Text, default="")
     alamat = Column(Text, default="")
     city_id = Column(Integer, ForeignKey("cities.id", ondelete="SET NULL"), nullable=True)
-    link_gmaps = Column(String(500), default="")
-    website = Column(String(500), default="")
-    sosmed = Column(String(500), default="")
-    link_source = Column(String(500), default="")
+    link_gmaps = Column(Text, default="")
+    website = Column(Text, default="")
+    sosmed = Column(Text, default="")
+    instagram = Column(Text, default="")
+    facebook = Column(Text, default="")
+    linkedin = Column(Text, default="")
+    twitter_x = Column(Text, default="")
+    tiktok = Column(Text, default="")
+    link_source = Column(Text, default="")
     status = Column(Enum("New", "Contacted", "Follow Up", "Deal", "Rejected", name="status_enum"), default="New")
 
     # Relasi ke tabel lookup (lazy load)
@@ -39,9 +45,6 @@ class Lead(Base):
     # Extra nullable fields per kategori
     npsn = Column(String(20), default="")
     nama_kepsek = Column(String(200), default="")
-    posisi_rekrutmen = Column(String(255), default="")
-    deskripsi_it = Column(Text, default="")
-    penanggung_jawab = Column(String(200), default="")
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

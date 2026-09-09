@@ -54,36 +54,38 @@ def _seed_lead(db: Session, nama: str, category: str, city: str, **extra) -> Lea
 
 def test_find_incomplete_leads_filter_kategori_kota(db: Session):
     """Hanya lead seed yang cocok kategori+kota dan field-nya kosong yang jadi target."""
-    _seed_lead(db, "PT A", "umkm", "salatiga")            # target: umkm+salatiga, kosong
-    _seed_lead(db, "PT B", "umkm", "semarang")            # kota beda → bukan target
+    _seed_lead(db, "SMP A", "sekolah", "salatiga")            # target: sekolah+salatiga, kosong
+    _seed_lead(db, "SMP B", "sekolah", "semarang")            # kota beda → bukan target
     _seed_lead(db, "PT C", "corporate", "salatiga")       # kategori beda → bukan target
-    _seed_lead(db, "PT D", "umkm", "salatiga",
-               posisi_rekrutmen="Sudah ada", deskripsi_it="x")  # field lengkap → bukan target
+    _seed_lead(db, "SMP D", "sekolah", "salatiga",
+               npsn="20328460", nama_kepsek="Budi", email="info@smp.sch.id", link_source="https://kemdikbud.go.id")  # field lengkap → bukan target
 
-    found = enrich.find_incomplete_leads(db, source="jobstreet", category="umkm", city="salatiga")
+    found = enrich.find_incomplete_leads(db, source="dapodik", category="sekolah", city="salatiga")
     names = {l.nama_instansi for l in found}
-    assert names == {"PT A"}, f"expected hanya PT A, got {names}"
+    assert names == {"SMP A"}, f"expected hanya SMP A, got {names}"
 
 
 def test_match_and_merge_hanya_isi_kosong_tidak_replace(db: Session):
     """Matching mengisi field kosong; field terisi tidak di-replace."""
-    _seed_lead(db, "PT Maju Jaya", "umkm", "salatiga",
-               website="https://maju.id", deskripsi_it="deskripsi lama")
+    _seed_lead(db, "SMP N 1 Salatiga", "sekolah", "salatiga",
+               email="old@smp.sch.id", nama_kepsek="")
 
     stats = enrich.match_and_merge(
         db,
-        source="jobstreet",
+        source="dapodik",
         raw_items=[{
-            "nama_instansi": "PT Maju Jaya",
+            "nama_instansi": "SMP N 1 Salatiga",
             "kota": "salatiga",
-            "posisi_rekrutmen": "Flutter Developer",
-            "deskripsi_it": "deskripsi baru — jangan replace",
+            "npsn": "20328460",
+            "nama_kepsek": "Drs. Afit",
+            "email": "new@smp.sch.id",
         }],
-        category="umkm", city="salatiga",
+        category="sekolah", city="salatiga",
     )
-    lead = db.query(Lead).filter(Lead.nama_instansi == "PT Maju Jaya").one()
-    assert lead.posisi_rekrutmen == "Flutter Developer"   # field kosong → terisi
-    assert lead.deskripsi_it == "deskripsi lama"           # field terisi → TIDAK replace
+    lead = db.query(Lead).filter(Lead.nama_instansi == "SMP N 1 Salatiga").one()
+    assert lead.npsn == "20328460"        # field kosong → terisi
+    assert lead.nama_kepsek == "Drs. Afit" # field kosong → terisi
+    assert lead.email == "old@smp.sch.id"  # field terisi → TIDAK replace
     assert stats["matched"] == 1
     # Tidak ada lead baru yang dibuat (hanya 1 baris seed).
     assert db.query(Lead).count() == 1
@@ -203,14 +205,87 @@ def test_run_enrichment_mencatat_items_matched(job_db: Session):
 
     raw = [{
         "nama_instansi": "PT Cari Data", "kota": "salatiga",
-        "posisi_rekrutmen": "Backend Developer", "deskripsi_it": "REST API",
+        "npsn": "20328460",
     }]
-    jm._run_enrichment(job_db, job.id, _StubScraper(source="jobstreet", category="perusahaan"), raw)
+    jm._run_enrichment(job_db, job.id, _StubScraper(source="dapodik", category="perusahaan"), raw)
 
     job_db.expire_all()
     job = job_db.query(ScrapeJob).first()
     lead = job_db.query(Lead).filter(Lead.nama_instansi == "PT Cari Data").one()
-    assert lead.posisi_rekrutmen == "Backend Developer"
+    assert lead.npsn == "20328460"
     assert job.items_created == 1  # 1 lead terisi
     assert job.items_updated == 0
     assert job.status == "completed"
+
+
+def test_get_job_incomplete_leads(job_db: Session):
+    """Endpoint /jobs/{job_id}/incomplete mengembalikan lead seed yang belum lengkap."""
+    from backend.controllers.scrape_routes import get_job_incomplete_leads
+
+    # Buat job enrichment dapodik
+    job = store.create_job(job_db, "dapodik", "sekolah", "salatiga", 100)
+    # Seed 1 sekolah belum ada npsn & kepsek
+    _seed_lead(job_db, "SMP N 1 Salatiga", "sekolah", "salatiga")
+
+    res = get_job_incomplete_leads(job.id, _={}, db=job_db)
+    assert res["job_id"] == job.id
+    assert res["total"] >= 1
+    found = [x for x in res["items"] if x["nama_instansi"] == "SMP N 1 Salatiga"]
+    assert len(found) == 1
+    assert "npsn" in found[0]["missing_fields"]
+    assert "nama_kepsek" in found[0]["missing_fields"]
+
+
+def test_generate_job_id_format():
+    """Format ID job harus SCRP_{kategori[:14]}_{YYYYMMDD_HHMMSS} dan panjang <= 35."""
+    from backend.services.storage_service import generate_job_id
+
+    jid1 = generate_job_id("sekolah")
+    assert jid1.startswith("SCRP_sekolah_")
+    assert len(jid1) <= 35
+
+    jid2 = generate_job_id("vendor pengadaan barang & jasa")
+    assert jid2.startswith("SCRP_vendor_pengada_")
+    assert len(jid2) <= 35
+
+
+def test_find_or_create_job_creates_new_when_no_job_id(job_db: Session):
+    """Mulai scrape baru tanpa job_id harus selalu membuat baris baru, bukan menimpa yang lama."""
+    job1 = store.find_or_create_job(job_db, "gmaps", "sekolah", "salatiga", 50)
+    job1.status = "completed"
+    job_db.commit()
+
+    # Mulai scrape kedua dengan kategori & kota yang sama
+    job2 = store.find_or_create_job(job_db, "gmaps", "sekolah", "salatiga", 50)
+    assert job2.id != job1.id
+    assert job2.id.startswith("SCRP_sekolah_")
+
+    # Pastikan kedua job ada di database
+    all_jobs = job_db.query(ScrapeJob).filter(ScrapeJob.category == "sekolah").all()
+    assert len(all_jobs) == 2
+
+
+def test_find_or_create_job_updates_when_job_id_provided(job_db: Session):
+    """Aksi Ulangi / Lengkapi yang mengirimkan job_id harus meng-update job yang bersangkutan."""
+    job = store.create_job(job_db, "gmaps", "umkm", "salatiga", 10)
+    job.status = "cancelled"
+    job.progress = 5
+    job_db.commit()
+
+    # Rerun/update dengan job_id
+    updated = store.find_or_create_job(job_db, "gmaps", "umkm", "salatiga", 25, job_id=job.id)
+    assert updated.id == job.id
+    assert updated.status == "pending"
+    assert updated.max_results == 25
+    assert updated.progress == 0
+
+
+def test_delete_job_removes_from_db(job_db: Session):
+    """Hapus job harus menghapus row dari tabel scrape_jobs."""
+    job = store.create_job(job_db, "gmaps", "retail", "salatiga", 10)
+    jid = job.id
+    assert store.get_job(job_db, jid) is not None
+
+    deleted_count = store.delete_job(job_db, jid)
+    assert deleted_count == 1
+    assert store.get_job(job_db, jid) is None

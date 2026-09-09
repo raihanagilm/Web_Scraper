@@ -8,7 +8,6 @@ from backend.services.storage_service import save_raw_items
 EXPECTED_COLUMNS = {
     "nama_instansi", "kategori", "telp", "email", "alamat", "kota",
     "website", "sosmed", "source", "status", "npsn", "nama_kepsek",
-    "posisi_rekrutmen", "deskripsi_it", "penanggung_jawab",
 }
 
 
@@ -58,9 +57,6 @@ def import_csv_text(db: Session, text_content: str, source: str = "") -> dict:
                 "status": "status",
                 "npsn": "npsn",
                 "nama_kepsek": "nama_kepsek",
-                "posisi_rekrutmen": "posisi_rekrutmen",
-                "deskripsi_it": "deskripsi_it",
-                "penanggung_jawab": "penanggung_jawab",
             }
             field = mapping.get(key)
             if field and v and str(v).strip():

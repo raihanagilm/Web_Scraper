@@ -163,7 +163,7 @@ function startPolling() {
   pollTimer = setInterval(() => {
     if (!$("#page-scrape").classList.contains("hidden")) loadJobs(true);
     if (!$("#page-enrichment").classList.contains("hidden")) loadEnrichmentJobs(true);
-  }, 3000);
+  }, 2000);
 }
 
 function stopPolling() {
@@ -203,11 +203,11 @@ $("#btn-start-scrape").addEventListener("click", async () => {
         source: "gmaps",
         category: keyword,
         city: city,
-        max_results: parseInt($("#scrape-max").value, 10) || 100,
+        max_results: parseInt($("#scrape-max").value, 10) || 50,
       },
     });
     addKeywordHistory(keyword); // catat ke Riwayat Kategori (unique)
-    msg.textContent = `Scrape GMaps dimulai (Job ${job.id.slice(0, 8)}) — pantau progres di bawah.`;
+    msg.textContent = `Scrape GMaps dimulai (${job.id}) — pantau progres di bawah.`;
     msg.classList.remove("hidden");
     startPolling();
     loadJobs();
@@ -270,40 +270,33 @@ renderKeywordChips();
 // ---- Enrichment ----
 // Label tampilan per sumber & field (meta selengkapnya dinamis dari /api/sources)
 const SOURCE_LABELS = {
+  google: "Pencarian Google / Web",
   dapodik: "Dapodik Kemdikbud",
   jobstreet: "Jobstreet",
   glints: "Glints",
   lpse: "LPSE Daerah",
 };
 const FIELD_LABELS = {
+  telp: "No. WA/Telepon",
+  email: "Email",
+  website: "Website",
+  sosmed: "Instagram",
   npsn: "NPSN",
   nama_kepsek: "Nama Kepsek",
-  posisi_rekrutmen: "Posisi Rekrutmen",
-  deskripsi_it: "Deskripsi IT",
-  penanggung_jawab: "Penanggung Jawab",
+  link_source: "Sumber Data",
 };
 
-// Muat meta enrichment dinamis: dropdown sumber manual (hanya yang scraper-nya
-// aktif yang bisa dipilih) + tabel "Field yang Diisi per Sumber Enrichment".
+// Cache daftar sumber enrichment (dari /api/sources)
+let enrichSourcesCache = [];
+// Cache job terakhir yang dirender
+let lastJobs = [];
+
+// Muat meta enrichment dinamis untuk tabel "Field yang Diisi per Sumber Enrichment".
 async function loadEnrichmentMeta() {
   try {
     const s = await api("/api/sources");
     const list = s.enrichment_sources || [];
-    enrichSourcesCache = list; // dipakai picker inline per baris job
-
-    const sel = $("#enrich-source");
-    if (sel) {
-      sel.innerHTML =
-        '<option value="">Auto (berdasarkan kategori)</option>' +
-        list
-          .map((e) => {
-            const label = SOURCE_LABELS[e.source] || e.source;
-            return e.available
-              ? `<option value="${esc(e.source)}">${esc(label)}</option>`
-              : `<option value="${esc(e.source)}" disabled>${esc(label)} — scraper belum tersedia (M2)</option>`;
-          })
-          .join("");
-    }
+    enrichSourcesCache = list;
 
     const fmtFields = (fields) =>
       (fields || []).map((f) => FIELD_LABELS[f] || f).join(", ") || "-";
@@ -327,156 +320,147 @@ async function loadEnrichmentMeta() {
   }
 }
 
-// ---- Sinkronisasi Kategori ↔ Kota (data binding dari tabel Results) ----
-// Opsi diambil dinamis dari /api/enrich/options → hanya kombinasi (Kategori,
-// Kota) yang benar-benar punya data seed (gmaps) di Results yang tersedia.
-// Saat Kategori dipilih/ketik, opsi Kota otomatis tersaring (filtered) ke kota
-// yang memiliki data kategori tsb → mencegah enrichment kombinasi kosong.
-const enrichOptions = { categories: [], cities_by_category: {}, all_cities: [] };
-// Cache daftar sumber enrichment (dari /api/sources) untuk picker inline per baris job
-let enrichSourcesCache = [];
-// Cache job terakhir yang dirender (untuk tombol Enrich/Ulangi per baris)
-let lastJobs = [];
+// ===== MODAL PILIHAN SUMBER ENRICHMENT =====
+let currentEnrichJob = null;
 
-function enrichCitiesFor(categoryRaw) {
-  const map = enrichOptions.cities_by_category || {};
-  const cat = String(categoryRaw || "").trim().toLowerCase();
-  if (!cat) return [];
-  if (Object.prototype.hasOwnProperty.call(map, cat)) return map[cat];
-  const key = Object.keys(map).find((k) => k.toLowerCase() === cat);
-  return key ? map[key] : [];
+function openEnrichModal(job) {
+  if (!job) return;
+  currentEnrichJob = job;
+
+  const modalTarget = $("#enrich-modal-target-text");
+  if (modalTarget) {
+    modalTarget.textContent = `Kategori "${job.category}" di Kota "${job.city}"`;
+  }
+
+  const errEl = $("#modal-enrich-error");
+  if (errEl) {
+    errEl.textContent = "";
+    errEl.classList.add("hidden");
+  }
+
+  // Rekomendasi pintar sumber enrichment berdasarkan nama kategori
+  const cat = String(job.category || "").toLowerCase();
+  let defaultSource = "google";
+
+  // Sembunyikan semua badge rekomendasi dulu
+  ["google", "dapodik", "jobstreet", "glints", "lpse"].forEach((src) => {
+    const b = $(`#badge-rec-${src}`);
+    if (b) b.classList.add("hidden");
+  });
+
+  if (
+    cat.includes("sekolah") || cat.includes("sd") || cat.includes("smp") ||
+    cat.includes("sma") || cat.includes("smk") || cat.includes("madrasah") ||
+    cat.includes("pesantren") || cat.includes("school")
+  ) {
+    defaultSource = "dapodik";
+    const b = $("#badge-rec-dapodik");
+    if (b) b.classList.remove("hidden");
+  } else if (cat.includes("vendor") || cat.includes("kontraktor") || cat.includes("b2g") || cat.includes("pengadaan")) {
+    defaultSource = "lpse";
+    const b = $("#badge-rec-lpse");
+    if (b) b.classList.remove("hidden");
+  } else if (cat.includes("corporate") || cat.includes("perusahaan")) {
+    defaultSource = "jobstreet";
+    const b = $("#badge-rec-jobstreet");
+    if (b) b.classList.remove("hidden");
+  } else {
+    // Default umum (rumah sakit, klinik, faskes, hotel, kafe, resto, umkm, toko, dll.)
+    defaultSource = "google";
+    const b = $("#badge-rec-google");
+    if (b) b.classList.remove("hidden");
+  }
+
+  selectEnrichRadio(defaultSource);
+
+  const overlay = $("#modal-enrich-overlay");
+  if (overlay) overlay.classList.remove("hidden");
 }
 
-function renderEnrichOptions() {
-  // Kategori = dropdown (select) — opsi dinamis dari data seed (Results).
-  const catSel = $("#enrich-category");
-  if (catSel) {
-    const prev = catSel.value || "";
-    catSel.innerHTML =
-      '<option value="">— Pilih Kategori —</option>' +
-      enrichOptions.categories
-        .map((c) => `<option value="${esc(c)}">${esc(c)}</option>`)
-        .join("");
-    if (enrichOptions.categories.length) {
-      // Pertahankan pilihan lama jika masih valid; jika kosong, preseleksi pertama
-      catSel.value = enrichOptions.categories.includes(prev) ? prev : enrichOptions.categories[0];
-    }
-  }
+function closeEnrichModal() {
+  const overlay = $("#modal-enrich-overlay");
+  if (overlay) overlay.classList.add("hidden");
+  currentEnrichJob = null;
+}
 
-  const catEl = $("#enrich-category");
-  const selectedCat = catEl ? (catEl.value || "").trim() : "";
-  const cities = enrichCitiesFor(selectedCat);
-  const cityList = $("#enrich-city-list");
-  if (cityList) {
-    cityList.innerHTML = cities.map((c) => `<option value="${esc(c)}"></option>`).join("");
-  }
-
-  const cityInput = $("#enrich-city");
-  // Preselect kota pertama saat kosong (dari kota valid utk kategori terpilih)
-  if (cityInput && !cityInput.value.trim() && cities.length) {
-    cityInput.value = cities[0];
-  }
-  // Kota terpilih tidak valid utk kategori yg dipilih → kosongkan (pilih ulang)
-  if (cityInput && cities.length && cityInput.value.trim() &&
-      !cities.some((c) => c.toLowerCase() === cityInput.value.trim().toLowerCase())) {
-    cityInput.value = "";
-  }
-
-  const hint = $("#enrich-options-hint");
-  if (hint) {
-    if (!enrichOptions.categories.length) {
-      hint.textContent = "Belum ada data seed di Results — jalankan Scrape (Google Maps) dulu, lalu kembali ke menu ini.";
-      hint.className = "form-msg muted";
+function selectEnrichRadio(sourceVal) {
+  const cards = document.querySelectorAll(".enrich-source-card");
+  cards.forEach((card) => {
+    const radio = card.querySelector('input[type="radio"]');
+    if (card.dataset.source === sourceVal) {
+      if (radio) radio.checked = true;
+      card.classList.add("selected");
     } else {
-      hint.textContent =
-        `${enrichOptions.categories.length} kategori tersedia dari data seed (` +
-        `${enrichOptions.all_cities.length} kota). Kota otomatis tersaring sesuai kategori terpilih.`;
-      hint.className = "form-msg muted";
+      card.classList.remove("selected");
     }
-  }
+  });
 }
 
-async function loadEnrichOptions(force = false) {
-  try {
-    const r = await api("/api/enrich/options");
-    enrichOptions.categories = r.categories || [];
-    enrichOptions.cities_by_category = r.cities_by_category || {};
-    enrichOptions.all_cities = r.all_cities || [];
-  } catch (_) { /* non-fatal */ }
-  renderEnrichOptions();
-}
+async function submitEnrichModal() {
+  if (!currentEnrichJob) return;
+  const checkedRadio = document.querySelector('input[name="modal_enrich_source"]:checked');
+  const selectedSource = checkedRadio ? checkedRadio.value : "google";
+  const errEl = $("#modal-enrich-error");
+  const submitBtn = $("#modal-enrich-submit");
 
-// Re-render opsi Kota setiap kali kategori di dropdown diubah
-document.addEventListener("DOMContentLoaded", () => {
-  const catSel = $("#enrich-category");
-  if (catSel) catSel.addEventListener("change", renderEnrichOptions);
-});
-if ($("#enrich-category")) renderEnrichOptions();
-
-$("#btn-start-enrich")?.addEventListener("click", async () => {
-  unlockAudio();
-  const msg = $("#enrich-msg");
-  msg.classList.add("hidden");
   try {
-    const category = $("#enrich-category").value.trim();
-    const city = $("#enrich-city").value.trim();
-    if (!category) {
-      msg.textContent = "Pilih kategori dari dropdown (opsi dari data seed di Results).";
-      msg.style.color = "var(--danger)";
-      msg.classList.remove("hidden");
-      return;
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Memulai...";
     }
-    if (!city) {
-      msg.textContent = "Pilih / ketik kota (opsi otomatis tersaring sesuai kategori).";
-      msg.style.color = "var(--danger)";
-      msg.classList.remove("hidden");
-      return;
-    }
-    if (!enrichOptions.categories.length) {
-      msg.textContent = "Belum ada data seed di Results — jalankan Scrape (Google Maps) dulu sebelum enrichment.";
-      msg.style.color = "var(--danger)";
-      msg.classList.remove("hidden");
-      return;
-    }
-    const allowedCities = enrichCitiesFor(category);
-    if (!allowedCities.length) {
-      msg.textContent = `Kategori '${category}' belum punya data seed di Results. Kategori tersedia: ${enrichOptions.categories.join(", ")}`;
-      msg.style.color = "var(--danger)";
-      msg.classList.remove("hidden");
-      return;
-    }
-    if (!allowedCities.some((c) => c.toLowerCase() === city.toLowerCase())) {
-      msg.textContent = `Kombinasi '${category}' + '${city}' tidak punya data seed di Results. Kota tersedia utk '${category}': ${allowedCities.join(", ")}`;
-      msg.style.color = "var(--danger)";
-      msg.classList.remove("hidden");
-      return;
-    }
-    const job = await api("/api/enrich", {
+    unlockAudio();
+    await api("/api/enrich", {
       method: "POST",
       body: {
-        category,
-        city,
-        enrichment_source: $("#enrich-source").value,
-        max_results: parseInt($("#enrich-max").value, 10) || 100,
+        category: currentEnrichJob.category,
+        city: currentEnrichJob.city,
+        enrichment_source: selectedSource,
+        max_results: 0,
       },
     });
-    msg.textContent = `Enrichment dimulai (Job ${job.id.slice(0, 8)}) — pantau progres di Riwayat Job.`;
-    msg.classList.remove("hidden");
+    closeEnrichModal();
+    navigate("enrichment");
     startPolling();
-    loadJobs();
+    loadEnrichmentJobs();
   } catch (ex) {
-    msg.textContent = ex.message;
-    msg.style.color = "var(--danger)";
-    msg.classList.remove("hidden");
+    if (errEl) {
+      errEl.textContent = "Gagal memulai enrichment: " + ex.message;
+      errEl.classList.remove("hidden");
+    }
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "⚡ Mulai Enrichment";
+    }
   }
+}
+
+// Inisialisasi event listener interaktif modal pilihan enrichment
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll(".enrich-source-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      const src = card.dataset.source;
+      if (src) selectEnrichRadio(src);
+    });
+  });
+
+  $("#modal-enrich-close")?.addEventListener("click", closeEnrichModal);
+  $("#modal-enrich-cancel")?.addEventListener("click", closeEnrichModal);
+  $("#modal-enrich-submit")?.addEventListener("click", submitEnrichModal);
+  $("#modal-enrich-overlay")?.addEventListener("click", (e) => {
+    if (e.target.id === "modal-enrich-overlay") closeEnrichModal();
+  });
 });
 
 // ---- Load Enrichment Jobs ----
+let lastEnrichJobs = [];
+
 async function loadEnrichmentJobs(silent = false) {
   try {
     const r = await api("/api/jobs?limit=100");
     // Filter hanya job enrichment (bukan gmaps seed)
     const enrichJobs = (r.items || []).filter((j) => j.source !== "gmaps");
+    lastEnrichJobs = enrichJobs;
     if (silent) {
       enrichJobs.forEach((j) => {
         const prev = jobPrevStatus.get(j.id);
@@ -495,14 +479,36 @@ async function loadEnrichmentJobs(silent = false) {
   }
 }
 
+// Format tampilan Ditemukan / Terambil: misal "12/50 dari 120"
+function formatJobResult(j) {
+  const isTerminal = ["completed", "error", "cancelled"].includes(j.status);
+  const taken = (j.items_created || 0) + (j.items_updated || 0);
+  const progress = parseInt(j.progress, 10) || 0;
+  // Saat proses running, gunakan progress ekstraksi real-time agar tidak macet di 0
+  const currentCount = isTerminal ? taken : Math.max(progress, taken);
+
+  const target = parseInt(j.max_results, 10) || 0;
+  const found = parseInt(j.total_found, 10) || 0;
+  if (found > target && target > 0) {
+    return `${currentCount}/${target} dari ${found}`;
+  }
+  if (target > 0 && found > 0) {
+    return `${currentCount}/${target}`;
+  }
+  if (found > 0) {
+    return `${currentCount}/${found}`;
+  }
+  return `${currentCount}/${target || 0}`;
+}
+
 function renderEnrichmentJobs(jobs) {
   const fmtTime = (iso) =>
     iso ? new Date(iso).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "-";
-  $("#enrich-jobs-body").innerHTML = jobs
+  $("#enrich-jobs-body").innerHTML = (jobs || [])
     .map((j) => {
       const taken = (j.items_created || 0) + (j.items_updated || 0);
       return `
-    <tr>
+    <tr data-ejob="${j.id}">
       <td class="mono">${fmtTime(j.started_at)}</td>
       <td><span class="tag tag-src">${esc(j.source)}</span></td>
       <td>${esc(j.category)}</td>
@@ -512,11 +518,20 @@ function renderEnrichmentJobs(jobs) {
         <div class="progress-track"><div class="progress-fill" style="width:${jobProgressPct(j)}%"></div></div>
         <span class="mono" style="font-size:11.5px;color:var(--muted)" title="${taken} lead field terisi">${jobProgressPct(j)}%</span>
       </td>
-      <td class="mono">${j.total_found}${taken ? ` <span class="muted" style="font-size:11px">· ${taken} terambil</span>` : ""}</td>
+      <td class="mono">${formatJobResult(j)}</td>
       <td class="row-actions">
         ${j.status === "running" || j.status === "pending"
-          ? `<button class="btn btn-ghost btn-sm" data-cancel="${j.id}">Stop</button>` : ""}
+          ? `<button class="btn btn-ghost btn-sm" data-cancel="${j.id}">Stop</button>`
+          : `<button class="btn btn-ghost btn-sm" data-rerunenrich="${j.id}" title="Ulangi enrichment ini (update waktu & data)">↻ Ulangi</button>`}
+        <button class="btn btn-ghost btn-sm" data-incompletetoggle="${j.id}" title="Lihat daftar instansi yang belum lengkap atau gagal di-enrich">📋 Data Belum Lengkap</button>
         <button class="btn btn-ghost-danger btn-sm" data-deljob="${j.id}" title="Hapus riwayat job">Hapus</button>
+      </td>
+    </tr>
+    <tr class="incomplete-row hidden" data-incompleterow="${j.id}">
+      <td colspan="8">
+        <div class="incomplete-box" data-incompletebox="${j.id}">
+          <div class="incomplete-loading muted">Memuat data belum lengkap…</div>
+        </div>
       </td>
     </tr>`;
     })
@@ -530,26 +545,161 @@ function renderEnrichmentJobs(jobs) {
       } catch (ex) { console.warn("cancel:", ex.message); }
     })
   );
+  document.querySelectorAll("#page-enrichment [data-rerunenrich]").forEach((b) =>
+    b.addEventListener("click", () => rerunEnrichmentJob(b.dataset.rerunenrich))
+  );
   document.querySelectorAll("#page-enrichment [data-deljob]").forEach((b) =>
     b.addEventListener("click", () => deleteJob(b.dataset.deljob, loadEnrichmentJobs))
   );
+  document.querySelectorAll("#page-enrichment [data-incompletetoggle]").forEach((b) =>
+    b.addEventListener("click", () => toggleIncompleteRow(b.dataset.incompletetoggle))
+  );
 }
 
-// Progress % = (Ditemukan / Maks. Hasil) × 100 — pembagi ikut input user,
-// bukan 100 hardcoded. Cap 0–100 agar bar tidak overflow.
+// Ulangi job enrichment yang sudah selesai/error dengan update waktu started_at
+async function rerunEnrichmentJob(jobId) {
+  const job = (lastEnrichJobs || []).find((j) => j.id === jobId);
+  if (!job) return;
+  const ok = await confirmDialog(
+    `Ulangi enrichment ${job.source.toUpperCase()} untuk '${job.category}' @ '${job.city}'? Riwayat job akan diperbarui (waktu di-update).`
+  );
+  if (!ok) return;
+  try {
+    await api("/api/enrich", {
+      method: "POST",
+      body: {
+        job_id: job.id,
+        category: job.category,
+        city: job.city,
+        enrichment_source: job.source,
+        max_results: 0,
+      },
+    });
+    startPolling();
+    loadEnrichmentJobs();
+  } catch (ex) {
+    alert("Gagal menjalankan ulang enrichment: " + ex.message);
+  }
+}
+
+async function toggleIncompleteRow(jobId) {
+  const row = document.querySelector(`[data-incompleterow="${jobId}"]`);
+  if (!row) return;
+  const isHidden = row.classList.contains("hidden");
+  row.classList.toggle("hidden");
+  if (isHidden) {
+    await loadIncompleteLeads(jobId);
+  }
+}
+
+async function loadIncompleteLeads(jobId) {
+  const box = document.querySelector(`[data-incompletebox="${jobId}"]`);
+  if (!box) return;
+  box.innerHTML = '<div class="incomplete-loading muted">Memuat data lokasi yang belum lengkap…</div>';
+  try {
+    const res = await api(`/api/jobs/${jobId}/incomplete`);
+    const items = res.items || [];
+    if (!items.length) {
+      box.innerHTML = `
+        <div class="incomplete-empty">
+          <span class="tag tag-completed">Semua Lengkap</span>
+          <span class="muted" style="margin-left:8px">Semua lead (${esc(res.category)} @ ${esc(res.city)}) sudah memiliki data ${(res.fields || []).map((f) => FIELD_LABELS[f] || f).join(", ")}.</span>
+        </div>`;
+      return;
+    }
+
+    const rows = items
+      .map((item, idx) => {
+        const missingBadges = (item.missing_fields || [])
+          .map((f) => `<span class="tag tag-pending" style="font-size:11px">${esc(FIELD_LABELS[f] || f)}: kosong</span>`)
+          .join(" ");
+
+        const loc = [item.alamat, item.kota].filter(Boolean).join(", ") || "-";
+        return `
+        <div class="incomplete-item" data-incleadid="${item.id}">
+          <div class="incomplete-info">
+            <div class="incomplete-title">
+              <b>${idx + 1}. ${esc(item.nama_instansi || "Tanpa Nama")}</b>
+              <span class="tag tag-src" style="font-size:10px">${esc(item.source || "seed")}</span>
+            </div>
+            <div class="incomplete-loc">
+              📍 <b>Lokasi:</b> ${esc(loc)}
+            </div>
+            <div class="incomplete-fields">
+              <span class="muted" style="font-size:11.5px;margin-right:6px">Status Data:</span>
+              ${missingBadges}
+            </div>
+          </div>
+          <div class="incomplete-actions">
+            <button type="button" class="btn btn-primary btn-sm btn-edit-inc" data-editinc="${item.id}" title="Isi data enrichment secara manual">
+              ✏️ Isi Manual
+            </button>
+          </div>
+        </div>`;
+      })
+      .join("");
+
+    box.innerHTML = `
+      <div class="incomplete-header">
+        <span style="font-weight:600;font-size:13px">Data Belum Lengkap / Gagal Enrich (${items.length} lokasi di ${esc(res.city)}):</span>
+        <span class="muted" style="font-size:12px">Anda dapat mengisi field yang belum ada (${(res.fields || []).map((f) => FIELD_LABELS[f] || f).join(", ")}) secara manual di bawah ini.</span>
+      </div>
+      <div class="incomplete-list">${rows}</div>
+    `;
+
+    box.querySelectorAll(".btn-edit-inc").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const leadId = parseInt(btn.dataset.editinc, 10);
+        const leadObj = items.find((x) => x.id === leadId);
+        if (leadObj) {
+          openEditModal(leadObj);
+          window._onModalSaveCallback = () => loadIncompleteLeads(jobId);
+        }
+      });
+    });
+  } catch (err) {
+    box.innerHTML = `<div class="incomplete-error form-msg" style="color:var(--danger)">Gagal memuat data: ${esc(err.message)}</div>`;
+  }
+}
+
+// Perhitungan persentase progres yang akurat dan bertahap secara real-time.
 function jobProgressPct(j) {
+  if (j.status === "completed") return 100;
+
   const max = parseInt(j.max_results, 10) || 0;
   const found = parseInt(j.total_found, 10) || 0;
-  if (max <= 0) return Math.max(0, Math.min(100, parseInt(j.progress, 10) || 0));
-  return Math.max(0, Math.min(100, Math.round((found / max) * 100)));
+  const progress = parseInt(j.progress, 10) || 0;
+  const taken = (j.items_created || 0) + (j.items_updated || 0);
+  const currentCount = Math.max(progress, taken);
+
+  // Jika error atau cancelled
+  if (["error", "cancelled"].includes(j.status)) {
+    if (currentCount <= 0) return 0;
+    const target = max > 0 ? max : (found || 1);
+    return Math.max(0, Math.min(100, Math.round((currentCount / target) * 100)));
+  }
+
+  // Jika pending, progress 0%
+  if (j.status === "pending") return 0;
+
+  // Target efektif: jika listing Maps yang ditemukan lebih sedikit dari target max_results,
+  // gunakan jumlah yang ditemukan sebagai batas target.
+  const effectiveTarget = (found > 0 && found < max) ? found : (max > 0 ? max : (found || 1));
+
+  if (currentCount <= 0) {
+    // Saat baru mulai running (membuka browser atau scrolling feed)
+    return found > 0 ? 5 : 2;
+  }
+
+  // Hitung persentase progres bertahap (1/50 = 2%, 10/50 = 20%, dst)
+  const pct = Math.round((currentCount / effectiveTarget) * 100);
+  // Selama status masih running, jangan loncat ke 100% sebelum selesai seutuhnya
+  return Math.max(2, Math.min(99, pct));
 }
 
 async function loadJobs(silent = false) {
   try {
     const r = await api("/api/jobs");
-    // Sound saat transisi terminal (selesai -> done, gagal/cancel -> fail).
-    // Gating `silent=true` (call dari polling) = hanya diputar lewat transition live,
-    // bukan saat user buka ulang page scrape.
     if (silent) {
       (r.items || []).forEach((j) => {
         const prev = jobPrevStatus.get(j.id);
@@ -561,7 +711,7 @@ async function loadJobs(silent = false) {
       });
     }
     renderJobs(r.items);
-    const active = r.items.some((j) => j.status === "running" || j.status === "pending");
+    const active = (r.items || []).some((j) => j.status === "running" || j.status === "pending");
     if (active) startPolling(); else stopPolling();
   } catch (ex) {
     if (!silent) console.warn("loadJobs:", ex.message);
@@ -569,54 +719,58 @@ async function loadJobs(silent = false) {
 }
 
 function renderJobs(jobs) {
-  lastJobs = jobs || [];
-  const sorted = sortByKey(jobs, jobSort.key, jobSort.dir);
+  // Riwayat Job di menu Scrape KHUSUS data Google Maps (PRD/user request)
+  const gmapsJobs = (jobs || []).filter((j) => j.source === "gmaps");
+  lastJobs = gmapsJobs;
+  const sorted = sortByKey(gmapsJobs, jobSort.key, jobSort.dir);
   const fmtTime = (iso) =>
     iso ? new Date(iso).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "-";
   const isTerminal = (j) => !["running", "pending"].includes(j.status);
 
   $("#jobs-body").innerHTML = sorted
     .map((j) => {
-      const taken = (j.items_created || 0) + (j.items_updated || 0);
       const isSeed = j.source === "gmaps";
-      const actions = [
-        j.status === "running" || j.status === "pending"
-          ? `<button class="btn btn-ghost btn-sm" data-cancel="${j.id}">Stop</button>` : "",
-        isSeed && isTerminal(j)
-          ? `<button class="btn btn-ghost btn-sm" data-enrich="${j.id}" title="Mulai enrichment utk kategori+kota job ini">⚡ Enrich</button>` : "",
-        isTerminal(j)
-          ? `<button class="btn btn-ghost btn-sm" data-rerun="${j.id}" title="Jalankan ulang job ini (aman — anti-duplikat / hanya isi field kosong)">↻ Ulangi</button>` : "",
-        `<button class="btn btn-ghost-danger btn-sm" data-deljob="${j.id}" title="Hapus riwayat job">Hapus</button>`,
-      ].join("");
+      const isTerminalState = isTerminal(j);
+      const isCompleted = j.status === "completed";
+      const quotaReached = (j.progress || 0) >= (j.max_results || 0);
+      const hasMoreFound = (j.total_found || 0) > (j.progress || 0);
 
-      // Baris inline picker enrichment (expand di bawah job seed yang terminal)
-      const enrichRow = isSeed && isTerminal(j)
-        ? `<tr class="enrich-row hidden" data-enrichrow="${j.id}"><td colspan="8">
-             <div class="enrich-inline">
-               <span class="muted">Enrich <b>${esc(j.category)}</b> @ <b>${esc(j.city)}</b> — pilih sumber:</span>
-               <select data-esrc="${j.id}">${enrichSourceOptions()}</select>
-               <button class="btn btn-primary btn-sm" data-startenrich="${j.id}">Mulai Enrichment</button>
-             </div>
-             <p class="form-msg hidden" data-emsg="${j.id}"></p>
-           </td></tr>`
-        : "";
+      let actionBtn = "";
+      if (j.status === "running" || j.status === "pending") {
+        actionBtn = `<button class="btn btn-ghost btn-sm" data-cancel="${j.id}">Stop</button>`;
+      } else if (isCompleted && quotaReached && hasMoreFound) {
+        // Kuota sudah selesai (misal 5/5), tapi di Maps masih ada sisa listing (total_found > progress misal 120 > 5)
+        // Tombolnya adalah "➕ Lengkapi" (bukan Ulangi)
+        actionBtn = `<button class="btn btn-ghost btn-sm" data-complete="${j.id}" title="Lengkapi data (ditemukan ${j.total_found}, baru terambil ${j.progress})">➕ Lengkapi</button>`;
+      } else if (!isCompleted || (!quotaReached && hasMoreFound)) {
+        // Belum selesai (error, cancelled, atau kuota belum terpenuhi)
+        // Tombolnya adalah "↻ Ulangi"
+        actionBtn = `<button class="btn btn-ghost btn-sm" data-rerun="${j.id}" title="Ulangi job yang belum selesai ini">↻ Ulangi</button>`;
+      }
+
+      const actions = [
+        actionBtn,
+        isSeed && isTerminalState
+          ? `<button class="btn btn-ghost btn-sm" data-enrich="${j.id}" title="Pindah ke menu Enrichment utk kategori & kota job ini">⚡ Enrich</button>` : "",
+        `<button class="btn btn-ghost-danger btn-sm" data-deljob="${j.id}" title="Hapus riwayat job">Hapus</button>`,
+      ].filter(Boolean).join(" ");
 
       return `
     <tr>
       <td class="mono">${fmtTime(j.started_at)}</td>
-      <td><span class="tag tag-src">${esc(j.source)}</span></td>
+      <td class="mono font-bold" style="font-size:11px;letter-spacing:-0.2px;color:var(--text-main)">${esc(j.id || '')}</td>
       <td>${esc(j.category)}</td>
       <td>${esc(j.city)}</td>
       <td><span class="tag tag-${esc(j.status)}">${esc(j.status)}</span></td>
       <td>
         <div class="progress-track"><div class="progress-fill" style="width:${jobProgressPct(j)}%"></div></div>
-        <span class="mono" style="font-size:11.5px;color:var(--muted)" title="Ditemukan ${j.total_found} dari maks. ${j.max_results}">${jobProgressPct(j)}%</span>
+        <span class="mono" style="font-size:11.5px;color:var(--muted)" title="${j.progress || 0} diproses dari target ${j.max_results || j.total_found || 0} (total listing: ${j.total_found || 0})">${jobProgressPct(j)}%</span>
       </td>
-      <td class="mono">${j.total_found}${taken ? ` <span class="muted" style="font-size:11px">· ${taken} terambil</span>` : ""}</td>
+      <td class="mono">${formatJobResult(j)}</td>
       <td class="row-actions">${actions}</td>
-    </tr>${enrichRow}`;
+    </tr>`;
     })
-    .join("") || `<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">Belum ada job</td></tr>`;
+    .join("") || `<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">Belum ada job Google Maps</td></tr>`;
 
   renderJobSortIndicators();
   document.querySelectorAll("[data-cancel]").forEach((b) =>
@@ -632,81 +786,94 @@ function renderJobs(jobs) {
   );
   document.querySelectorAll("#page-scrape [data-enrich]").forEach((b) =>
     b.addEventListener("click", () => {
-      const row = document.querySelector(`[data-enrichrow="${b.dataset.enrich}"]`);
-      if (row) row.classList.toggle("hidden");
+      const job = lastJobs.find((j) => j.id === b.dataset.enrich);
+      if (job) goToEnrichmentFromJob(job);
     })
-  );
-  document.querySelectorAll("#page-scrape [data-startenrich]").forEach((b) =>
-    b.addEventListener("click", () => startInlineEnrich(b.dataset.startenrich))
   );
   document.querySelectorAll("#page-scrape [data-rerun]").forEach((b) =>
     b.addEventListener("click", () => rerunJob(b.dataset.rerun))
   );
-}
-
-function enrichSourceOptions() {
-  return (
-    '<option value="">Auto (berdasarkan kategori)</option>' +
-    enrichSourcesCache
-      .map((e) => {
-        const label = SOURCE_LABELS[e.source] || e.source;
-        return e.available
-          ? `<option value="${esc(e.source)}">${esc(label)}</option>`
-          : `<option value="${esc(e.source)}" disabled>${esc(label)} — belum tersedia</option>`;
-      })
-      .join("")
+  document.querySelectorAll("#page-scrape [data-complete]").forEach((b) =>
+    b.addEventListener("click", () => completeJob(b.dataset.complete))
   );
 }
 
-// Mulai enrichment langsung dari baris job seed — kategori+kota ikut job,
-// user hanya memilih sumber + maks hasil.
-async function startInlineEnrich(jobId) {
+// Membuka modal pilihan sumber enrichment untuk job terkait
+function goToEnrichmentFromJob(job) {
+  if (!job) return;
+  openEnrichModal(job);
+}
+
+// Lengkapi data jika total_found > progress (misal 5/5 dari 120).
+// Memperbarui job yang sudah ada (update waktu & status) tanpa membuat baris baru.
+async function completeJob(jobId) {
   const job = lastJobs.find((j) => j.id === jobId);
-  const row = document.querySelector(`[data-enrichrow="${jobId}"]`);
-  const msg = row ? row.querySelector(`[data-emsg="${jobId}"]`) : null;
-  if (!job || !msg) return;
-  const source = row.querySelector(`[data-esrc="${jobId}"]`)?.value || "";
-  msg.classList.add("hidden");
+  if (!job) return;
+  const sisa = Math.max(0, (job.total_found || 0) - (job.progress || 0));
+  const defaultTarget = job.total_found || 100;
+  const input = prompt(
+    `Lengkapi data '${job.category}' @ '${job.city}'?\n` +
+    `Total listing ditemukan di Google Maps: ${job.total_found}\n` +
+    `Sudah terambil: ${job.progress} data (tersisa ${sisa} data lagi).\n\n` +
+    `Masukkan target maksimal hasil baru:`,
+    defaultTarget
+  );
+  if (!input) return;
+  const newMax = parseInt(input, 10);
+  if (isNaN(newMax) || newMax <= 0) {
+    alert("Jumlah target harus berupa angka positif.");
+    return;
+  }
   try {
-    // Tanpa max_results → enrichment memproses semua kandidat (ikut jumlah data seed)
-    const newJob = await api("/api/enrich", {
+    await api("/api/scrape", {
       method: "POST",
-      body: { category: job.category, city: job.city, enrichment_source: source },
+      body: {
+        job_id: job.id,
+        source: job.source,
+        category: job.category,
+        city: job.city,
+        max_results: newMax,
+      },
     });
-    msg.textContent = `✅ Enrichment dimulai (Job ${newJob.id.slice(0, 8)}) — lihat Riwayat Job / halaman Enrichment.`;
-    msg.style.color = "var(--primary)";
-    msg.classList.remove("hidden");
     startPolling();
     loadJobs();
   } catch (ex) {
-    msg.textContent = ex.message;
-    msg.style.color = "var(--danger)";
-    msg.classList.remove("hidden");
+    alert("Gagal melengkapi data: " + ex.message);
   }
 }
 
-// Ulangi job (scrape/enrichment) dengan parameter yang sama.
-// Aman diulang: seed pakai upsert anti-duplikat; enrichment hanya isi field kosong.
+// Ulangi job (scrape/enrichment) yang belum selesai atau error.
+// Memperbarui job yang sudah ada (waktu di-update) tanpa membuat baris baru.
 async function rerunJob(jobId) {
   const job = lastJobs.find((j) => j.id === jobId);
   if (!job) return;
   const ok = await confirmDialog(
     job.source === "gmaps"
-      ? `Ulangi scrape '${job.category}' @ '${job.city}'? Data lama tidak akan dobel (anti-duplikat).`
-      : `Ulangi enrichment ${job.source} untuk '${job.category}' @ '${job.city}'? Hanya field kosong yang diisi.`
+      ? `Ulangi scrape '${job.category}' @ '${job.city}'? Riwayat job akan diperbarui (waktu di-update).`
+      : `Ulangi enrichment ${job.source} untuk '${job.category}' @ '${job.city}'? Riwayat job akan diperbarui.`
   );
   if (!ok) return;
   try {
     if (job.source === "gmaps") {
       await api("/api/scrape", {
         method: "POST",
-        body: { source: job.source, category: job.category, city: job.city, max_results: job.max_results || 100 },
+        body: {
+          job_id: job.id,
+          source: job.source,
+          category: job.category,
+          city: job.city,
+          max_results: job.max_results || 100,
+        },
       });
     } else {
-      // Enrichment ulang: tanpa max (proses semua kandidat), aman (hanya isi field kosong)
       await api("/api/enrich", {
         method: "POST",
-        body: { category: job.category, city: job.city, enrichment_source: job.source },
+        body: {
+          job_id: job.id,
+          category: job.category,
+          city: job.city,
+          enrichment_source: job.source,
+        },
       });
     }
     startPolling();
@@ -792,26 +959,37 @@ const leadState = { page: 1, size: 25, sort_by: "updated_at", sort_dir: "desc" }
 let currentItems = []; // cache item halaman aktif (untuk modal edit)
 const EDITABLE_FIELDS = [
   "nama_instansi", "kategori", "telp", "email", "alamat", "kota",
-  "link_gmaps", "website", "sosmed", "npsn", "nama_kepsek",
-  "posisi_rekrutmen", "deskripsi_it", "penanggung_jawab",
+  "link_gmaps", "website", "instagram", "facebook", "linkedin", "twitter_x", "tiktok", "sosmed", "npsn", "nama_kepsek",
 ];
+// ---- SVG Icons (Lucide / Feather style — profesional, bukan emoji keyboard) ----
 const PENCIL_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>`;
+const TRASH_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="m19 6-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>`;
+const GMAPS_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`;
+const CLOSE_SVG = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+const GLOBE_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`;
+const PHONE_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
+const INSTAGRAM_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>`;
+const FACEBOOK_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>`;
+const LINKEDIN_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>`;
+const TWITTER_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4l11.733 16h4.267l-11.733 -16z"/><path d="M4 20l6.768 -6.768m2.46 -2.46l6.772 -6.772"/></svg>`;
+const TIKTOK_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg>`;
+const MAIL_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`;
+const ID_CARD_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="8" x2="17" y2="8"/><line x1="7" y1="12" x2="13" y2="12"/><line x1="7" y1="16" x2="10" y2="16"/></svg>`;
+const MERGE_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>`;
+const CHECK_SHIELD_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>`;
+
 
 async function loadFilters() {
   try {
     const r = await api("/api/filters");
-    // Sumber: gabungan registry + DB, hilangkan duplikat (Set)
-    const uniqueSources = [...new Set(r.sources || [])];
-    const sel = $("#f-source");
-    const existing = new Set([...sel.options].map((o) => o.value));
-    uniqueSources.forEach((s) => {
-      if (!existing.has(s)) {
-        const o = document.createElement("option");
-        o.value = s;
-        o.textContent = s.toUpperCase();
-        sel.appendChild(o);
-      }
-    });
+    // Kategori: dropdown dari DB (menggantikan filter sumber per permintaan user)
+    const uniqueCategories = [...new Set(r.categories || [])];
+    const catSel = $("#f-category");
+    if (catSel) {
+      catSel.innerHTML =
+        '<option value="">Semua kategori</option>' +
+        uniqueCategories.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join("");
+    }
     // Kota: dropdown dari DB
     const uniqueCities = [...new Set(r.cities || [])];
     $("#f-kota").innerHTML =
@@ -819,18 +997,15 @@ async function loadFilters() {
       uniqueCities.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join("");
     // Datalist untuk modal edit lead (kategori & kota dari DB)
     $("#kota-list").innerHTML = uniqueCities.map((c) => `<option value="${esc(c)}"></option>`).join("");
-    const catOptions = [...new Set(r.categories || [])]
-      .map((c) => `<option value="${esc(c)}"></option>`).join("");
+    const catOptions = uniqueCategories.map((c) => `<option value="${esc(c)}"></option>`).join("");
     $("#kategori-list").innerHTML = catOptions;
-    // Catatan: form Enrichment memakai /api/enrich/options (seed-based),
-    // bukan /api/filters di sini — diisi oleh loadEnrichOptions().
   } catch (_) { /* non-fatal */ }
 }
 
 function leadParams() {
   return new URLSearchParams({
     search: $("#f-search").value.trim(),
-    source: $("#f-source").value,
+    category: $("#f-category") ? $("#f-category").value : "",
     kota: $("#f-kota").value,
     status: $("#f-status").value,
     page: leadState.page,
@@ -849,23 +1024,121 @@ function renderSortIndicators() {
   });
 }
 
-// Sel <td> dari Nama Instansi s.d. Sumber — dipakai tabel Results & Review Duplikat
+// ---- Shortcut Cepat Hapus Field di Result Table (Gambar 1 style) ----
+function formatResultPhone(l) {
+  if (!l.telp) return "-";
+  return `
+    <div class="result-field-chip chip-telp">
+      <span class="chip-icon">${PHONE_SVG}</span>
+      <span class="chip-label">TELP:</span>
+      <span class="mono chip-val" title="${esc(l.telp)}">${esc(l.telp)}</span>
+      <button type="button" class="btn-result-clear" data-rclear="${l.id}" data-rfield="telp" title="Hapus nomor telepon">${CLOSE_SVG}</button>
+    </div>`;
+}
+
+function formatResultEmail(l) {
+  if (!l.email) return "-";
+  const list = String(l.email).split(",").map((e) => e.trim()).filter(Boolean);
+  if (!list.length) return "-";
+  return `<div class="result-chip-box">${list
+    .map(
+      (e) => `
+    <div class="result-field-chip chip-email">
+      <span class="chip-icon">${MAIL_SVG}</span>
+      <span class="chip-label">EMAIL:</span>
+      <a href="mailto:${esc(e)}" class="cell-url chip-val" title="${esc(e)}">${esc(e)}</a>
+      <button type="button" class="btn-result-clear" data-rclear="${l.id}" data-rfield="email" data-rval="${esc(e)}" title="Hapus email ini">${CLOSE_SVG}</button>
+    </div>`
+    )
+    .join("")}</div>`;
+}
+
+function formatResultWebsite(l) {
+  if (!l.website) return "-";
+  return `
+    <div class="result-field-chip chip-web">
+      <span class="chip-icon">${GLOBE_SVG}</span>
+      <span class="chip-label">WEB:</span>
+      <a href="${esc(l.website)}" target="_blank" rel="noopener" class="cell-url chip-val" title="${esc(l.website)}">${esc(l.website)}</a>
+      <button type="button" class="btn-result-clear" data-rclear="${l.id}" data-rfield="website" title="Hapus link website">${CLOSE_SVG}</button>
+    </div>`;
+}
+
+function formatResultSocial(l) {
+  const items = [];
+  if (l.instagram) {
+    items.push(`
+      <div class="result-field-chip">
+        <span class="chip-icon">${INSTAGRAM_SVG}</span>
+        <span class="chip-label">IG:</span>
+        <a href="${esc(l.instagram)}" target="_blank" rel="noopener" class="cell-url chip-val" title="${esc(l.instagram)}">${esc(l.instagram)}</a>
+        <button type="button" class="btn-result-clear" data-rclear="${l.id}" data-rfield="instagram" title="Hapus Instagram">${CLOSE_SVG}</button>
+      </div>`);
+  }
+  if (l.tiktok) {
+    items.push(`
+      <div class="result-field-chip">
+        <span class="chip-icon">${TIKTOK_SVG}</span>
+        <span class="chip-label">TikTok:</span>
+        <a href="${esc(l.tiktok)}" target="_blank" rel="noopener" class="cell-url chip-val" title="${esc(l.tiktok)}">${esc(l.tiktok)}</a>
+        <button type="button" class="btn-result-clear" data-rclear="${l.id}" data-rfield="tiktok" title="Hapus TikTok">${CLOSE_SVG}</button>
+      </div>`);
+  }
+  if (l.facebook) {
+    items.push(`
+      <div class="result-field-chip">
+        <span class="chip-icon">${FACEBOOK_SVG}</span>
+        <span class="chip-label">FB:</span>
+        <a href="${esc(l.facebook)}" target="_blank" rel="noopener" class="cell-url chip-val" title="${esc(l.facebook)}">${esc(l.facebook)}</a>
+        <button type="button" class="btn-result-clear" data-rclear="${l.id}" data-rfield="facebook" title="Hapus Facebook">${CLOSE_SVG}</button>
+      </div>`);
+  }
+  if (l.linkedin) {
+    items.push(`
+      <div class="result-field-chip">
+        <span class="chip-icon">${LINKEDIN_SVG}</span>
+        <span class="chip-label">LinkedIn:</span>
+        <a href="${esc(l.linkedin)}" target="_blank" rel="noopener" class="cell-url chip-val" title="${esc(l.linkedin)}">${esc(l.linkedin)}</a>
+        <button type="button" class="btn-result-clear" data-rclear="${l.id}" data-rfield="linkedin" title="Hapus LinkedIn">${CLOSE_SVG}</button>
+      </div>`);
+  }
+  if (l.twitter_x) {
+    items.push(`
+      <div class="result-field-chip">
+        <span class="chip-icon">${TWITTER_SVG}</span>
+        <span class="chip-label">X:</span>
+        <a href="${esc(l.twitter_x)}" target="_blank" rel="noopener" class="cell-url chip-val" title="${esc(l.twitter_x)}">${esc(l.twitter_x)}</a>
+        <button type="button" class="btn-result-clear" data-rclear="${l.id}" data-rfield="twitter_x" title="Hapus Twitter/X">${CLOSE_SVG}</button>
+      </div>`);
+  }
+  if (l.sosmed && !l.instagram && !l.tiktok && !l.facebook && !l.linkedin && !l.twitter_x) {
+    items.push(`
+      <div class="result-field-chip">
+        <span class="chip-icon">${GLOBE_SVG}</span>
+        <span class="chip-label">MEDSOS:</span>
+        <a href="${esc(l.sosmed)}" target="_blank" rel="noopener" class="cell-url chip-val" title="${esc(l.sosmed)}">${esc(l.sosmed)}</a>
+        <button type="button" class="btn-result-clear" data-rclear="${l.id}" data-rfield="sosmed" title="Hapus Media Sosial">${CLOSE_SVG}</button>
+      </div>`);
+  }
+  if (!items.length) return "-";
+  return `<div class="result-chip-box">${items.join("")}</div>`;
+}
+
+// Sel <td> dari Nama Instansi s.d. Sumber — dipakai tabel Results
 function leadCells(l) {
   return `
+      <td class="mono font-bold" style="color:var(--primary); font-size:11.5px; white-space:nowrap;">${esc(l.kode || ('LD-' + l.id))}</td>
       <td><b>${esc(l.nama_instansi)}</b></td>
       <td>${esc(l.kategori || "-")}</td>
-      <td class="mono">${esc(l.telp || "-")}</td>
-      <td class="mono">${esc(l.email || "-")}</td>
+      <td>${formatResultPhone(l)}</td>
+      <td>${formatResultEmail(l)}</td>
       <td>${esc(l.alamat || "-")}</td>
       <td>${esc(l.kota || "-")}</td>
       <td>${linkCell(l.link_gmaps, l.link_gmaps)}</td>
-      <td>${linkCell(l.website, l.website)}</td>
-      <td>${linkCell(l.sosmed, l.sosmed ? igLabel(l.sosmed) : "")}</td>
+      <td>${formatResultWebsite(l)}</td>
+      <td>${formatResultSocial(l)}</td>
       <td class="mono">${esc(l.npsn || "-")}</td>
       <td>${esc(l.nama_kepsek || "-")}</td>
-      <td>${esc(l.posisi_rekrutmen || "-")}</td>
-      <td class="cell-trunc" title="${esc(l.deskripsi_it || "")}">${esc(l.deskripsi_it || "-")}</td>
-      <td>${esc(l.penanggung_jawab || "-")}</td>
       <td>${linkCell(l.link_source, l.link_source)}</td>
       <td><span class="tag tag-src">${esc(l.source)}</span></td>`;
 }
@@ -880,6 +1153,32 @@ function sortByKey(arr, key, dir) {
     if (typeof va === "number" && typeof vb === "number") return (va - vb) * mul;
     return String(va).localeCompare(String(vb), "id", { numeric: true }) * mul;
   });
+}
+
+async function quickClearResultItem(leadId, field, specificVal) {
+  const item = currentItems.find((x) => x.id === leadId);
+  const instName = item ? item.nama_instansi : `Lead #${leadId}`;
+  let promptMsg = `Hapus data ${field} dari "${instName}"?`;
+  let payload = {};
+
+  if (field === "email" && specificVal) {
+    promptMsg = `Hapus email "${specificVal}" dari "${instName}"?`;
+    const curEmails = String(item?.email || "").split(",").map((e) => e.trim()).filter(Boolean);
+    const updatedEmails = curEmails.filter((e) => e.toLowerCase() !== specificVal.toLowerCase()).join(", ");
+    payload = { email: updatedEmails };
+  } else {
+    payload = { [field]: "" };
+  }
+
+  const ok = await confirmDialog(promptMsg, false);
+  if (!ok) return;
+
+  try {
+    await api(`/api/leads/${leadId}`, { method: "PATCH", body: payload });
+    loadLeads();
+  } catch (ex) {
+    alert("Gagal menghapus data: " + ex.message);
+  }
 }
 
 async function loadLeads() {
@@ -908,7 +1207,7 @@ async function loadLeads() {
       </td>
     </tr>`
     )
-    .join("") || `<tr><td colspan="20" class="muted" style="text-align:center;padding:24px">Tidak ada lead</td></tr>`;
+    .join("") || `<tr><td colspan="21" class="muted" style="text-align:center;padding:24px">Tidak ada lead</td></tr>`;
   $("#leads-body").innerHTML = rows;
   renderSortIndicators();
 
@@ -951,6 +1250,16 @@ async function loadLeads() {
     })
   );
 
+  document.querySelectorAll("[data-rclear]").forEach((btn) =>
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = parseInt(btn.dataset.rclear, 10);
+      const field = btn.dataset.rfield;
+      const val = btn.dataset.rval || null;
+      quickClearResultItem(id, field, val);
+    })
+  );
+
   document.querySelectorAll("[data-status]").forEach((sel) => {
     sel.dataset.prev = sel.value;
     sel.addEventListener("change", async () => {
@@ -972,7 +1281,6 @@ async function loadLeads() {
 // ---- Results: seleksi baris & hapus ----
 const selectedLeads = new Set();
 let currentPageIds = [];
-const TRASH_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="m19 6-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>`;
 
 function syncSelAll(selAll) {
   const all = currentPageIds.length > 0 && currentPageIds.every((id) => selectedLeads.has(id));
@@ -1053,6 +1361,8 @@ function openEditModal(leadObj) {
   if (!leadObj) return;
   const l = leadObj;
   $("#edit-id").value = l.id;
+  const kodeEl = $("#edit-kode");
+  if (kodeEl) kodeEl.value = l.kode || ("LD-" + l.id);
   EDITABLE_FIELDS.forEach((f) => {
     const el = $(`#edit-${f}`);
     if (el) el.value = l[f] || "";
@@ -1094,6 +1404,10 @@ $("#edit-form").addEventListener("submit", async (e) => {
     await api(`/api/leads/${id}`, { method: "PATCH", body: payload });
     closeEditModal();
     reloadActivePage();
+    if (typeof window._onModalSaveCallback === "function") {
+      try { window._onModalSaveCallback(); } catch (_) {}
+      window._onModalSaveCallback = null;
+    }
   } catch (ex) {
     const err = $("#edit-error");
     err.textContent = "Gagal menyimpan: " + ex.message;
@@ -1102,8 +1416,9 @@ $("#edit-form").addEventListener("submit", async (e) => {
 });
 
 // ---- Filter: Enter → Terapkan, Reset, Sorting ----
-["f-search", "f-source", "f-kota", "f-status"].forEach((id) => {
+["f-search", "f-category", "f-kota", "f-status"].forEach((id) => {
   const el = $(`#${id}`);
+  if (!el) return;
   el.addEventListener("keydown", (e) => {
     if (e.key === "Enter") { e.preventDefault(); $("#btn-filter").click(); }
   });
@@ -1111,7 +1426,7 @@ $("#edit-form").addEventListener("submit", async (e) => {
 
 $("#btn-reset-filter").addEventListener("click", () => {
   $("#f-search").value = "";
-  $("#f-source").value = "";
+  if ($("#f-category")) $("#f-category").value = "";
   $("#f-kota").value = "";
   $("#f-status").value = "";
   leadState.sort_by = "updated_at";
@@ -1199,35 +1514,72 @@ $("#import-file").addEventListener("change", async (e) => {
   e.target.value = "";
 });
 
+function reloadActivePage() {
+  const hash = location.hash.replace("#", "") || "dashboard";
+  if (hash === "results") loadLeads();
+  else if (hash === "dedup") loadDedup();
+  else if (hash === "dashboard") loadDashboard();
+  else if (hash === "enrichment") loadEnrichmentJobs();
+}
+
 // ---- Review Duplikat page ----
 let dedupGroups = [];
 const dedupSorts = {}; // groupKey -> { key, dir }
 
 async function loadDedup() {
   const r = await api("/api/duplicates");
-  const groups = r.groups;
+  const groups = r.groups || [];
   dedupGroups = groups;
   const badge = $("#dedup-badge");
-  badge.classList.toggle("hidden", groups.length === 0);
-  badge.textContent = groups.length || "";
+  if (badge) {
+    badge.classList.toggle("hidden", groups.length === 0);
+    badge.textContent = groups.length || "";
+  }
   $("#dedup-empty").classList.toggle("hidden", groups.length > 0);
   $("#dedup-list").innerHTML = groups.map(renderGroup).join("");
 
+  bindDedupEvents();
+}
+
+function bindDedupEvents() {
   document.querySelectorAll("[data-resolve]").forEach((btn) =>
     btn.addEventListener("click", () => resolveGroup(btn))
   );
 
-  // tombol pensil edit per baris member
+  // Tombol quick clear field (hapus nilai pemicu duplikat secara instan)
+  document.querySelectorAll("[data-qclear]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      const id = parseInt(btn.dataset.qclear, 10);
+      const field = btn.dataset.qfield;
+      const label = btn.dataset.qlabel || field;
+      quickClearLeadField(id, field, label);
+    })
+  );
+
+  // Tombol hapus 1 lead baris ini
+  document.querySelectorAll("[data-ddel]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      const id = parseInt(btn.dataset.ddel, 10);
+      const name = btn.dataset.dname || "Lead";
+      deleteSingleLeadInGroup(id, name);
+    })
+  );
+
+  // Tombol pensil edit per baris member
   document.querySelectorAll("[data-dedit]").forEach((btn) =>
     btn.addEventListener("click", () => {
       const id = parseInt(btn.dataset.dedit, 10);
       const g = btn.closest("[data-group]");
       const members = (dedupGroups.find((x) => x.key === g?.dataset.group) || {}).member_data || [];
-      openEditModal(members.find((m) => m.id === id));
+      const item = members.find((m) => m.id === id);
+      if (item) {
+        openEditModal(item);
+        window._onModalSaveCallback = loadDedup;
+      }
     })
   );
 
-  // klik header kolom grup → sorting client-side
+  // Klik header kolom grup → sorting client-side
   document.querySelectorAll("#dedup-list .dup-group").forEach((card) => {
     const g = dedupGroups.find((x) => x.key === card.dataset.group);
     if (!g) return;
@@ -1246,53 +1598,109 @@ async function loadDedup() {
   });
 }
 
+function dedupTableHead() {
+  return `<tr>
+      <th style="width:36px; text-align:center;">No</th>
+      <th class="th-sort col-instansi" data-dsort="nama_instansi">Nama Instansi <span class="sort-arrow" aria-hidden="true"></span></th>
+      <th class="th-sort col-kategori" data-dsort="kategori">Bidang Usaha / Kategori <span class="sort-arrow" aria-hidden="true"></span></th>
+      <th class="th-sort col-alamat" data-dsort="alamat">Alamat Lengkap <span class="sort-arrow" aria-hidden="true"></span></th>
+      <th class="th-sort col-kota" data-dsort="kota">Kota <span class="sort-arrow" aria-hidden="true"></span></th>
+      <th class="th-sort col-gmaps" data-dsort="link_gmaps">Link Gmaps <span class="sort-arrow" aria-hidden="true"></span></th>
+      <th class="th-sort col-dups" data-dsort="dup_fields">Data Terindikasi Duplikat (Kontak & Pemicu) <span class="sort-arrow" aria-hidden="true"></span></th>
+      <th class="col-aksi">Aksi</th>
+    </tr>`;
+}
+
+function formatGmapsTruncated(url, maxLen = 75) {
+  if (!url) return `<span class="muted">-</span>`;
+  const full = String(url);
+  if (full.length <= maxLen) {
+    return `<a href="${esc(full)}" target="_blank" rel="noopener noreferrer" class="link-gmaps-truncated" title="${esc(full)}">[${esc(full)}]</a>`;
+  }
+  const prefix = full.substring(0, maxLen);
+  return `<a href="${esc(full)}" target="_blank" rel="noopener noreferrer" class="link-gmaps-truncated" title="${esc(full)}">[${esc(prefix)}].................</a>`;
+}
+
+function renderDupItemBadge(leadId, fieldName, fieldLabel, val, isTrigger) {
+  if (!val) return "";
+  let icon = "";
+  if (fieldName === "website") icon = GLOBE_SVG;
+  else if (fieldName === "instagram") icon = INSTAGRAM_SVG;
+  else if (fieldName === "tiktok") icon = TIKTOK_SVG;
+  else if (fieldName === "facebook") icon = FACEBOOK_SVG;
+  else if (fieldName === "linkedin") icon = LINKEDIN_SVG;
+  else if (fieldName === "twitter_x") icon = TWITTER_SVG;
+  else if (fieldName === "sosmed") icon = GLOBE_SVG;
+  else if (fieldName === "telp") icon = PHONE_SVG;
+  else if (fieldName === "email") icon = MAIL_SVG;
+  else if (fieldName === "npsn") icon = ID_CARD_SVG;
+
+  const cls = isTrigger ? "dup-field-chip is-duplicate" : "dup-field-chip";
+  const clearBtn = isTrigger
+    ? `<button type="button" class="btn-chip-clear" data-qclear="${leadId}" data-qfield="${fieldName}" data-qlabel="${fieldLabel}" title="Kosongkan ${fieldLabel} dari baris ini agar tidak terduplikasi">${CLOSE_SVG} <span>Hapus ${fieldLabel}</span></button>`
+    : `<button type="button" class="btn-chip-clear-mini" data-qclear="${leadId}" data-qfield="${fieldName}" data-qlabel="${fieldLabel}" title="Kosongkan ${fieldLabel}">${CLOSE_SVG}</button>`;
+
+  let displayVal = esc(val);
+  if (["website", "sosmed", "instagram", "tiktok", "facebook", "linkedin", "twitter_x"].includes(fieldName)) {
+    displayVal = `<a href="${esc(val)}" target="_blank" rel="noopener noreferrer">${esc(val)}</a>`;
+  }
+
+  return `
+    <div class="${cls}">
+      <span class="dup-chip-icon" aria-hidden="true">${icon}</span>
+      <span class="dup-chip-label">${esc(fieldLabel)}:</span>
+      <span class="dup-chip-val" title="${esc(val)}">${displayVal}</span>
+      ${clearBtn}
+    </div>`;
+}
+
 function renderDedupRows(g) {
   const sort = dedupSorts[g.key];
   const members = sort ? sortByKey(g.member_data, sort.key, sort.dir) : g.member_data;
+  const triggerField = g.trigger_field || "";
+
   return members
-    .map(
-      (m, i) => `
+    .map((m, i) => {
+      // Kumpulkan badge field yang terisi
+      const badges = [];
+      if (m.website) badges.push(renderDupItemBadge(m.id, "website", "Web", m.website, triggerField === "website"));
+      if (m.instagram) badges.push(renderDupItemBadge(m.id, "instagram", "Instagram", m.instagram, triggerField === "instagram"));
+      if (m.tiktok) badges.push(renderDupItemBadge(m.id, "tiktok", "TikTok", m.tiktok, triggerField === "tiktok"));
+      if (m.facebook) badges.push(renderDupItemBadge(m.id, "facebook", "Facebook", m.facebook, triggerField === "facebook"));
+      if (m.linkedin) badges.push(renderDupItemBadge(m.id, "linkedin", "LinkedIn", m.linkedin, triggerField === "linkedin"));
+      if (m.twitter_x) badges.push(renderDupItemBadge(m.id, "twitter_x", "Twitter/X", m.twitter_x, triggerField === "twitter_x"));
+      if (m.sosmed) badges.push(renderDupItemBadge(m.id, "sosmed", "Medsos", m.sosmed, triggerField === "sosmed"));
+      if (m.telp) badges.push(renderDupItemBadge(m.id, "telp", "Telp", m.telp, triggerField === "telp"));
+      if (m.email) badges.push(renderDupItemBadge(m.id, "email", "Email", m.email, triggerField === "email"));
+      if (m.npsn) badges.push(renderDupItemBadge(m.id, "npsn", "NPSN", m.npsn, triggerField === "npsn"));
+
+      const dupContent = badges.length
+        ? `<div class="dup-items-box">${badges.join("")}</div>`
+        : `<span class="muted" style="font-size:12px">Nama &amp; Lokasi Mirip</span>`;
+
+      const gmapsLink = `<div class="dup-link-wrap">${formatGmapsTruncated(m.link_gmaps)}</div>`;
+
+      return `
     <tr>
-      <td class="col-check"><input type="radio" name="winner-${esc(g.key)}" value="${m.id}" ${i === 0 ? "checked" : ""} aria-label="Jadikan lead #${m.id} (${esc(m.nama_instansi)}) sebagai pemenang" /></td>
-      <td class="mono">${i + 1}</td>
-      ${leadCells(m)}
-      <td>${esc(m.status || "-")}</td>
-      <td>
-        <div class="row-actions">
-          <button type="button" class="btn-icon btn-edit" data-dedit="${m.id}" aria-label="Edit lead ${esc(m.nama_instansi)}" title="Edit lead">${PENCIL_SVG}</button>
+      <td class="mono" style="text-align:center;">${i + 1}</td>
+      <td class="col-instansi">
+        <div style="font-weight:600; line-height:1.3;">${esc(m.nama_instansi)}</div>
+        <div class="muted" style="font-size:11px; margin-top:2px;">Kode: <span class="mono font-bold" style="color:var(--primary)">${esc(m.kode || ('LD-' + m.id))}</span></div>
+      </td>
+      <td class="col-kategori"><span class="tag tag-src">${esc(m.kategori || "-")}</span></td>
+      <td class="col-alamat" title="${esc(m.alamat || "-")}">${esc(m.alamat || "-")}</td>
+      <td class="col-kota">${esc(m.kota || "-")}</td>
+      <td class="col-gmaps">${gmapsLink}</td>
+      <td class="col-dups">${dupContent}</td>
+      <td class="col-aksi">
+        <div class="row-actions" style="justify-content:center; gap:4px;">
+          <button type="button" class="btn-action-icon btn-action-edit" data-dedit="${m.id}" aria-label="Edit lead ${esc(m.nama_instansi)}" title="Koreksi manual">${PENCIL_SVG}</button>
+          <button type="button" class="btn-action-icon btn-action-delete" data-ddel="${m.id}" data-dname="${esc(m.nama_instansi)}" aria-label="Hapus lead ${esc(m.nama_instansi)}" title="Hapus baris lead ini">${TRASH_SVG}</button>
         </div>
       </td>
-    </tr>`
-    )
-    .join("");
-}
-
-function dedupTableHead() {
-  const cols = [
-    ["nama_instansi", "Nama Instansi"],
-    ["kategori", "Bidang Usaha / Kategori"],
-    ["telp", "No. WA / Telepon"],
-    ["email", "Alamat Email"],
-    ["alamat", "Alamat Lengkap"],
-    ["kota", "Kota"],
-    ["link_gmaps", "Link Gmaps"],
-    ["website", "Link Website"],
-    ["sosmed", "Akun Media Sosial"],
-    ["npsn", "NPSN"],
-    ["nama_kepsek", "Nama Kepsek"],
-    ["posisi_rekrutmen", "Posisi Rekrutmen"],
-    ["deskripsi_it", "Deskripsi IT"],
-    ["penanggung_jawab", "Penanggung Jawab"],
-    ["link_source", "Link Kemendikdasmen"],
-    ["source", "Sumber"],
-    ["status", "Status"],
-  ];
-  return `<tr>
-      <th class="col-check"><span class="sr-only">Pilih pemenang</span></th>
-      <th>No</th>
-      ${cols.map(([k, label]) => `<th class="th-sort" data-dsort="${k}">${label} <span class="sort-arrow" aria-hidden="true"></span></th>`).join("")}
-      <th><span class="sr-only">Aksi</span></th>
     </tr>`;
+    })
+    .join("");
 }
 
 function renderDedupGroupBody(card, g) {
@@ -1305,26 +1713,47 @@ function renderDedupGroupBody(card, g) {
     const arrow = th.querySelector(".sort-arrow");
     if (arrow) arrow.textContent = active ? (sort.dir === "asc" ? "▲" : "▼") : "";
   });
-  // bind ulang tombol edit
+
+  // Rebind tombol di card ini
+  card.querySelectorAll("[data-qclear]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      quickClearLeadField(parseInt(btn.dataset.qclear, 10), btn.dataset.qfield, btn.dataset.qlabel);
+    })
+  );
+  card.querySelectorAll("[data-ddel]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      deleteSingleLeadInGroup(parseInt(btn.dataset.ddel, 10), btn.dataset.dname);
+    })
+  );
   card.querySelectorAll("[data-dedit]").forEach((btn) =>
     btn.addEventListener("click", () => {
       const id = parseInt(btn.dataset.dedit, 10);
-      openEditModal((g.member_data || []).find((m) => m.id === id));
+      const item = (g.member_data || []).find((m) => m.id === id);
+      if (item) {
+        openEditModal(item);
+        window._onModalSaveCallback = loadDedup;
+      }
     })
   );
+}
+
+function formatGroupTitle(g) {
+  const trigger = g.trigger_field || "";
+  const val = g.trigger_value ? ` (${g.trigger_value})` : "";
+  if (trigger === "website") return `Grup Website Sama${val}`;
+  if (trigger === "telp") return `Grup No. Telepon Sama${val}`;
+  if (trigger === "email") return `Grup Email Sama${val}`;
+  if (trigger === "npsn") return `Grup NPSN Sama${val}`;
+  if (trigger === "nama_instansi") return `Grup Nama & Kota Sama`;
+  return `Grup Duplikat ${esc(g.reason.join(", ") || "mirip")}`;
 }
 
 function renderGroup(g) {
   return `
     <div class="card dup-group" data-group="${esc(g.key)}">
       <div class="dup-head">
-        <b>Grup ${esc(g.key.split(":")[0])}</b>
+        <b>${esc(formatGroupTitle(g))}</b>
         <span class="dup-reason">${esc(g.reason.join(", ") || "mirip")} (skor ${g.score})</span>
-        <div class="dup-actions">
-          <button class="btn btn-ghost btn-sm" data-resolve="delete_all">Hapus Semua</button>
-          <button class="btn btn-ghost btn-sm" data-resolve="keep">Pertahankan Terpilih</button>
-          <button class="btn btn-primary btn-sm" data-resolve="merge">Gabungkan</button>
-        </div>
       </div>
       <div class="table-card">
         <div class="table-scroll">
@@ -1335,6 +1764,33 @@ function renderGroup(g) {
         </div>
       </div>
     </div>`;
+}
+
+async function quickClearLeadField(leadId, fieldName, fieldLabel) {
+  const ok = await confirmDialog(`Kosongkan ${fieldLabel} dari instansi ini agar tidak terduplikasi?`, false);
+  if (!ok) return;
+
+  try {
+    await api(`/api/leads/${leadId}`, {
+      method: "PATCH",
+      body: { [fieldName]: "" },
+    });
+    await loadDedup();
+  } catch (err) {
+    alert("Gagal mengosongkan data: " + err.message);
+  }
+}
+
+async function deleteSingleLeadInGroup(leadId, leadName) {
+  const ok = await confirmDialog(`Hapus instansi "${leadName}" (#${leadId}) dari database?`);
+  if (!ok) return;
+
+  try {
+    await api(`/api/leads/${leadId}`, { method: "DELETE" });
+    await loadDedup();
+  } catch (err) {
+    alert("Gagal menghapus lead: " + err.message);
+  }
 }
 
 async function resolveGroup(btn) {

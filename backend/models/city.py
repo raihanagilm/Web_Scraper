@@ -16,6 +16,7 @@ class City(Base):
     __tablename__ = "cities"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    kode = Column(String(50), unique=True, nullable=True, index=True)
     name = Column(String(100), unique=True, nullable=False, index=True)
     province = Column(String(100), default="")
     created_at = Column(DateTime, default=datetime.utcnow)

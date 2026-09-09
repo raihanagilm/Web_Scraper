@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from backend.deps import require_auth
 from backend.models import get_db
 from backend.services import storage_service as store
-from backend.services.enrichment_service import ENRICHMENT_FIELDS
+from backend.services.enrichment_service import ENRICHMENT_FIELDS, find_incomplete_leads
 from backend.services.job_manager import job_manager, ScraperRegistry
 from backend.services.scrapers.gmaps import GmapsScraper, get_enrichment_sources
 
@@ -25,7 +25,8 @@ class ScrapeRequest(BaseModel):
     source: str = "gmaps"
     category: str = "sekolah"
     city: str = "salatiga"
-    max_results: int = 100
+    max_results: int = 50
+    job_id: Optional[str] = None
 
 
 class EnrichmentRequest(BaseModel):
@@ -39,6 +40,7 @@ class EnrichmentRequest(BaseModel):
     city: str = "salatiga"
     enrichment_source: str = ""  # dapodik, jobstreet, glints, lpse (kosong = auto berdasarkan kategori)
     max_results: int = 0         # 0 = semua kandidat (tanpa batas)
+    job_id: Optional[str] = None
 
 
 @router.get("/sources")
@@ -56,18 +58,21 @@ def list_sources(_: dict = Depends(require_auth)) -> dict:
             for src, fields in ENRICHMENT_FIELDS.items()
         ],
         "categories": {
-            "sekolah": {"label": "Sekolah", "enrichment": ["dapodik"]},
-            "corporate": {"label": "Perusahaan / Corporate (Jateng)", "enrichment": ["jobstreet", "glints"]},
-            "perusahaan": {"label": "Perusahaan / Corporate (Jateng)", "enrichment": ["jobstreet", "glints"]},
-            "umkm": {"label": "UMKM, Retail, Resto/Kafe", "enrichment": ["jobstreet", "glints"]},
-            "retail": {"label": "UMKM, Retail, Resto/Kafe", "enrichment": ["jobstreet", "glints"]},
-            "resto": {"label": "UMKM, Retail, Resto/Kafe", "enrichment": ["jobstreet", "glints"]},
-            "restoran": {"label": "UMKM, Retail, Resto/Kafe", "enrichment": ["jobstreet", "glints"]},
-            "kafe": {"label": "UMKM, Retail, Resto/Kafe", "enrichment": ["jobstreet", "glints"]},
-            "cafe": {"label": "UMKM, Retail, Resto/Kafe", "enrichment": ["jobstreet", "glints"]},
-            "vendor": {"label": "Vendor B2G / Kontraktor", "enrichment": ["lpse"]},
-            "kontraktor": {"label": "Vendor B2G / Kontraktor", "enrichment": ["lpse"]},
-            "b2g": {"label": "Vendor B2G / Kontraktor", "enrichment": ["lpse"]},
+            "sekolah": {"label": "Sekolah", "enrichment": ["dapodik", "google"]},
+            "rumah sakit": {"label": "Rumah Sakit / Kesehatan", "enrichment": ["google"]},
+            "kesehatan": {"label": "Kesehatan / Faskes", "enrichment": ["google"]},
+            "hotel": {"label": "Hotel / Penginapan", "enrichment": ["google"]},
+            "corporate": {"label": "Perusahaan / Corporate (Jateng)", "enrichment": ["jobstreet", "glints", "google"]},
+            "perusahaan": {"label": "Perusahaan / Corporate (Jateng)", "enrichment": ["jobstreet", "glints", "google"]},
+            "umkm": {"label": "UMKM, Retail, Resto/Kafe", "enrichment": ["google", "jobstreet", "glints"]},
+            "retail": {"label": "UMKM, Retail, Resto/Kafe", "enrichment": ["google", "jobstreet", "glints"]},
+            "resto": {"label": "UMKM, Retail, Resto/Kafe", "enrichment": ["google"]},
+            "restoran": {"label": "UMKM, Retail, Resto/Kafe", "enrichment": ["google"]},
+            "kafe": {"label": "UMKM, Retail, Resto/Kafe", "enrichment": ["google"]},
+            "cafe": {"label": "UMKM, Retail, Resto/Kafe", "enrichment": ["google"]},
+            "vendor": {"label": "Vendor B2G / Kontraktor", "enrichment": ["lpse", "google"]},
+            "kontraktor": {"label": "Vendor B2G / Kontraktor", "enrichment": ["lpse", "google"]},
+            "b2g": {"label": "Vendor B2G / Kontraktor", "enrichment": ["lpse", "google"]},
         },
     }
 
@@ -77,8 +82,10 @@ def start_scrape(req: ScrapeRequest, _: dict = Depends(require_auth)) -> dict:
     """Memulai job scraping seed (GMaps) atau enrichment."""
     if req.max_results < 1:
         raise HTTPException(status_code=422, detail="max_results minimal 1")
+    if req.max_results > 100:
+        raise HTTPException(status_code=422, detail="max_results maksimal 100 agar proses stabil dan aman dari rate limit")
     try:
-        return job_manager.start(req.source, req.category, req.city, req.max_results)
+        return job_manager.start(req.source, req.category, req.city, req.max_results, job_id=req.job_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -113,11 +120,11 @@ def start_enrichment(req: EnrichmentRequest, _: dict = Depends(require_auth)) ->
 
     try:
         return job_manager.start(
-            source,
-            req.category,
-            req.city,
-            # None/0 → tanpa batas (enrich semua kandidat / ikut data seed)
-            max_results=req.max_results if req.max_results and req.max_results > 0 else None,
+            source=source,
+            category=req.category,
+            city=req.city,
+            max_results=req.max_results,
+            job_id=req.job_id,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -174,6 +181,56 @@ def get_job(job_id: str, _: dict = Depends(require_auth), db: Session = Depends(
         "log": job.log or "",
         "started_at": job.started_at.isoformat() if job.started_at else None,
         "finished_at": job.finished_at.isoformat() if job.finished_at else None,
+    }
+
+
+@router.get("/jobs/{job_id}/incomplete")
+def get_job_incomplete_leads(
+    job_id: str,
+    limit: int = 100,
+    _: dict = Depends(require_auth),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Mengambil daftar lead seed yang belum lengkap field enrichment-nya untuk job ini."""
+    job = store.get_job(db, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job tidak ditemukan")
+
+    fields = ENRICHMENT_FIELDS.get(job.source, [])
+    if not fields:
+        return {
+            "job_id": job.id,
+            "source": job.source,
+            "category": job.category,
+            "city": job.city,
+            "fields": [],
+            "items": [],
+            "total": 0,
+        }
+
+    leads = find_incomplete_leads(
+        db,
+        source=job.source,
+        category=job.category,
+        city=job.city,
+        limit=limit,
+    )
+
+    items = []
+    for l in leads:
+        d = store._lead_to_dict(l)
+        missing = [f for f in fields if not getattr(l, f, None) or str(getattr(l, f, "")).strip() in ("", "-")]
+        d["missing_fields"] = missing
+        items.append(d)
+
+    return {
+        "job_id": job.id,
+        "source": job.source,
+        "category": job.category,
+        "city": job.city,
+        "fields": fields,
+        "total": len(items),
+        "items": items,
     }
 
 

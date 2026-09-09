@@ -1,52 +1,77 @@
-"""Dedup Service: fingerprint, grouping kandidat duplikat, dan resolve merge."""
+import re
 from sqlalchemy.orm import Session
 
 from backend.models import Lead, MergeHistory
-from backend.services.cleaner import normalize_name, normalize_phone, normalize_website
+from backend.services.cleaner import normalize_emails, normalize_name, normalize_phone, normalize_website
 
 FIELDS_TO_COMPARE = [
-    "nama_instansi", "kategori", "telp", "email", "alamat", "kota",
-    "link_gmaps", "website", "sosmed", "link_source", "status",
-    "npsn", "nama_kepsek", "posisi_rekrutmen", "deskripsi_it", "penanggung_jawab",
+    "kode", "nama_instansi", "kategori", "telp", "email", "alamat", "kota",
+    "link_gmaps", "website", "sosmed", "instagram", "facebook", "linkedin", "twitter_x", "tiktok",
+    "link_source", "status", "npsn", "nama_kepsek",
 ]
 
 
-def _lead_fingerprints(lead: Lead) -> dict:
-    """Kumpulkan fingerprint keys dari 1 lead."""
-    fp: dict = {}
+def _lead_fingerprints(lead: Lead) -> list[tuple[str, str]]:
+    """Kumpulkan list of (key, val) fingerprint dari 1 lead (mendukung multi-email)."""
+    fps: list[tuple[str, str]] = []
     norm_name = normalize_name(lead.nama_instansi)
     city = (lead.kota or "").strip().lower()
     if norm_name and len(norm_name) >= 5:
-        fp["name_city"] = (norm_name, city)
+        fps.append(("name_city", f"{norm_name}|{city}"))
     if lead.npsn:
-        fp["npsn"] = lead.npsn.strip()
+        fps.append(("npsn", lead.npsn.strip()))
     if lead.telp:
-        fp["phone"] = normalize_phone(lead.telp)
-    if lead.email:
-        fp["email"] = lead.email.strip().lower()
+        fps.append(("phone", normalize_phone(lead.telp)))
     if lead.website:
-        fp["domain"] = normalize_website(lead.website)
-    return fp
+        fps.append(("domain", normalize_website(lead.website)))
+
+    # Multi-email fingerprints
+    if lead.email:
+        for em in re.split(r"[\s,;]+", lead.email):
+            em_clean = em.strip().lower()
+            if em_clean and "@" in em_clean:
+                fps.append(("email", em_clean))
+
+    # Social media fingerprints
+    if lead.instagram:
+        m_ig = re.search(r"instagram\.com/([A-Za-z0-9_.]+)", lead.instagram.lower())
+        if m_ig and m_ig.group(1) not in {"p", "reel", "explore"}:
+            fps.append(("instagram", m_ig.group(1)))
+
+    if lead.facebook:
+        m_fb = re.search(r"(?:facebook\.com|fb\.com)/([A-Za-z0-9_.\-]+)", lead.facebook.lower())
+        if m_fb and m_fb.group(1) not in {"sharer", "share", "policies"}:
+            fps.append(("facebook", m_fb.group(1)))
+
+    if lead.linkedin:
+        m_li = re.search(r"linkedin\.com/(?:company|school)/([A-Za-z0-9_.\-]+)", lead.linkedin.lower())
+        if m_li:
+            fps.append(("linkedin", m_li.group(1)))
+
+    return fps
 
 
 def _score_pair(lead_a: Lead, lead_b: Lead) -> tuple[int, list[str]]:
     """Skor kemiripan 2 lead (jumlah key fingerprint yang cocok)."""
-    fa = _lead_fingerprints(lead_a)
-    fb = _lead_fingerprints(lead_b)
+    fa = set(_lead_fingerprints(lead_a))
+    fb = set(_lead_fingerprints(lead_b))
     score = 0
     reasons = []
-    for key in fa:
-        if key in fb and fa[key] == fb[key]:
-            score += 1
-            label = {
-                "name_city": "nama+kota sama",
-                "npsn": "NPSN sama",
-                "phone": "telepon sama",
-                "email": "email sama",
-                "domain": "website sama",
-            }.get(key, key)
-            reasons.append(label)
-    return score, reasons
+    matched = fa.intersection(fb)
+    label_map = {
+        "name_city": "nama+kota sama",
+        "npsn": "NPSN sama",
+        "phone": "telepon sama",
+        "email": "email sama",
+        "domain": "website sama",
+        "instagram": "Instagram sama",
+        "facebook": "Facebook sama",
+        "linkedin": "LinkedIn sama",
+    }
+    for key, _val in matched:
+        score += 1
+        reasons.append(label_map.get(key, key))
+    return score, sorted(set(reasons))
 
 
 def _get_field_val(obj: Lead, field: str):
@@ -77,7 +102,7 @@ def find_duplicate_groups(db: Session, min_score: int = 1) -> list[dict]:
     # map fingerprint -> list of lead ids
     index: dict[tuple, list[int]] = {}
     for lead in leads:
-        for key, val in _lead_fingerprints(lead).items():
+        for key, val in _lead_fingerprints(lead):
             index.setdefault((key, val), []).append(lead.id)
 
     groups: dict[str, dict] = {}
@@ -96,11 +121,24 @@ def find_duplicate_groups(db: Session, min_score: int = 1) -> list[dict]:
                     best_reason = reasons
         if best_score >= min_score:
             key = f"{fp_key}:{fp_val}"
+            trigger_field = {
+                "domain": "website",
+                "phone": "telp",
+                "email": "email",
+                "npsn": "npsn",
+                "name_city": "nama_instansi",
+                "instagram": "instagram",
+                "facebook": "facebook",
+                "linkedin": "linkedin",
+            }.get(fp_key, fp_key)
             groups[key] = {
                 "key": key,
                 "score": best_score,
                 "reason": best_reason,
                 "members": sorted(set(ids)),
+                "trigger_field": trigger_field,
+                "trigger_type": fp_key,
+                "trigger_value": str(fp_val),
             }
     return sorted(groups.values(), key=lambda g: -g["score"])
 
@@ -147,6 +185,10 @@ def resolve_group(
                 chosen = next((m for m in members if m.id == int(chosen_id)), None)
                 if chosen and _get_field_val(chosen, f):
                     _set_field_val(winner, f, chosen)
+            elif f == "email":
+                # Gabungkan semua email unik dari member tanpa saling timpa
+                combined_emails = [winner.email or ""] + [m.email or "" for m in others]
+                winner.email = normalize_emails(", ".join(filter(None, combined_emails)))
             elif not _get_field_val(winner, f):
                 # isi otomatis dari member lain yang punya data
                 for m in others:

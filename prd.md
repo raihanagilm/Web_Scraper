@@ -127,7 +127,7 @@ Prinsip umum: **Google Maps adalah sumber utama (seed) untuk semua segmen** — 
 1. **Seed (GMaps):** scraper Google Maps menghasilkan *daftar leads dasar* per kategori/kota → Cleaner → upsert ke DB (unique constraint `(source, nama_instansi, kota)`).
 2. **Identifikasi lead belum lengkap:** storage service memilih lead yang field pendukungnya masih kosong — mis. `npsn`/`nama_kepsek` kosong (Sekolah), `posisi_rekrutmen`/`deskripsi_it` kosong (Perusahaan/UMKM), `penanggung_jawab` kosong (Vendor).
 3. **Enrichment scraper:** scraper pendukung dijalankan hanya untuk lead tersebut (lazy), dengan rate-limit 1–3 detik:
-   - **Dapodik** → isi NPSN & nama kepsek (Sekolah).
+   - **Dapodik** → isi NPSN, nama kepsek, email resmi, & link referensi Kemendikdasmen (Sekolah).
    - **Jobstreet/Glints** → isi posisi rekrutmen & deskripsi IT (Perusahaan/Corporate, UMKM, Retail, Resto/Kafe).
    - **LPSE Daerah** → isi penanggung jawab & detail bidang usaha (Vendor B2G/Kontraktor).
 4. **Matching:** fuzzy match `nama_instansi` + `kota`; alternatif NPSN (Sekolah) atau domain website/email (Perusahaan/UMKM). Hasil match di bawah threshold ditandai untuk review manual, bukan otomatis digabung.
@@ -160,7 +160,7 @@ Prinsip umum: **Google Maps adalah sumber utama (seed) untuk semua segmen** — 
 ## 8. Desain API (semua wajib login kecuali /api/auth/login)
 
 - Auth: POST /api/auth/login, POST /api/auth/logout, GET /api/auth/me
-- Scrape: POST /api/scrape, GET /api/sources (sumber + meta enrichment dinamis), GET /api/jobs (polling progres), GET /api/jobs/{id}, POST /api/jobs/{id}/cancel, DELETE /api/jobs/{id} (hapus riwayat), GET /api/browser-status, POST /api/browser-login
+- Scrape: POST /api/scrape, GET /api/sources (sumber + meta enrichment dinamis), GET /api/jobs (polling progres), GET /api/jobs/{id}, GET /api/jobs/{id}/incomplete (ambil data lead belum lengkap/gagal enrich), POST /api/jobs/{id}/cancel, DELETE /api/jobs/{id} (hapus riwayat), GET /api/browser-status, POST /api/browser-login
 - Enrichment: POST /api/enrich (max_results opsional — 0/tidak dikirim = proses semua kandidat seed), GET /api/enrich/options (kategori & kota DISTINCT dari data seed)
 - Leads: GET /api/stats, GET /api/leads (search, source, kota, category, status, page, size, sort), PATCH /api/leads/{id}, DELETE /api/leads/{id}, POST /api/leads/delete-bulk, GET /api/filters
 - Export/Import: GET /api/export (.xlsx), GET /api/export-csv, POST /api/import (multipart CSV)
@@ -173,9 +173,13 @@ Prinsip umum: **Google Maps adalah sumber utama (seed) untuk semua segmen** — 
 
 **users**: id, username UNIQUE, password_hash (bcrypt), full_name, created_at, updated_at
 
-**leads**: id, source (gmaps/dapodik/lpse/jobstreet/glints), priority (high/medium), nama_instansi, category_id → categories (lookup — kategori dinormalisasi via FK), telp (628), email, alamat, city_id → cities (lookup), link_gmaps, website, sosmed, link_source, status (New/Contacted/Follow Up/Deal/Rejected), npsn NULL, nama_kepsek NULL, posisi_rekrutmen NULL, deskripsi_it NULL, penanggung_jawab NULL, created_at, updated_at. **Unique: (source, nama_instansi, city_id)** — kategori & kota dinormalisasi ke tabel lookup (migrasi fase 1), bukan kolom string.
+**categories**: id, kode (`KAT-{KATEGORI}-{001}`), name UNIQUE, created_at
 
-**scrape_jobs**: id (UUID), source, category, city, max_results, status (pending/running/completed/cancelled/error), progress, total_found, items_created, items_updated, log, started_at, finished_at
+**cities**: id, kode (`K-{KOTA}-{001}`), name UNIQUE, province, created_at
+
+**leads**: id, kode (`LD-{KATEGORI}-{001}`), source (gmaps/dapodik/lpse/jobstreet/glints), priority (high/medium), nama_instansi, category_id → categories (lookup — kategori dinormalisasi via FK), telp (628), email (TEXT multi-email), alamat, city_id → cities (lookup), link_gmaps, website, instagram, facebook, linkedin, twitter_x, tiktok, sosmed, link_source, status (New/Contacted/Follow Up/Deal/Rejected), npsn NULL, nama_kepsek NULL, created_at, updated_at. **Unique: (source, nama_instansi, city_id)** — kategori & kota dinormalisasi ke tabel lookup (migrasi fase 1), bukan kolom string.
+
+**scrape_jobs**: id (format ringkas atau UUID), source, category, city, max_results, status (pending/running/completed/cancelled/error), progress, total_found, items_created, items_updated, log, started_at, finished_at
 
 **merge_history**: id, group_key, action (keep/merge/delete_all), winner_id, member_ids (JSON), field_choices (JSON), snapshot_deleted (JSON), created_at
 
@@ -208,7 +212,10 @@ Hijau (#0E2A1E sidebar, #2F6B4F tombol, #F2F6F3 paper), simpel fungsional anti-A
 - Enrichment Jobstreet/Glints pada lead Perusahaan/UMKM hasil seed → posisi rekrutmen & deskripsi IT terisi
 - Job bisa di-cancel via Stop; job yang prosesnya mati (browser ditutup/server restart) dikoreksi otomatis → `error`
 - Progress realtime via polling `/api/jobs` (interval 3 detik)
-- Kolom "Ditemukan · Terambil" menampilkan jumlah data yang benar-benar masuk DB (`items_created + items_updated`)
+- Kolom Ditemukan menampilkan format informatif misal `98/100 dari 120` (terambil / target dari total listing GMaps)
+- Pemisahan riwayat job: menu Scrape khusus GMaps, menu Enrichment khusus Enrichment
+- Tombol ⚡ Enrich di menu Scrape langsung mengarahkan (direct) ke form menu Enrichment
+- Dropdown "Data Belum Lengkap" di Riwayat Enrichment menjabarkan lokasi dan field yang belum terisi dengan tombol isi manual
 - Hapus riwayat job per baris (lead yang tersimpan tidak ikut terhapus)
 - Enrichment tanpa batas "maks" — otomatis memproses semua kandidat seed yang field-nya kosong
 - Duplikat fuzzy terdeteksi di Review Duplikat

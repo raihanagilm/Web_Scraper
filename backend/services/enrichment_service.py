@@ -25,10 +25,11 @@ from backend.services.cleaner import normalize_name, normalize_website
 
 # Field pendukung yang boleh diisi tiap sumber enrichment (PRD §5.1)
 ENRICHMENT_FIELDS: dict[str, list[str]] = {
-    "dapodik": ["npsn", "nama_kepsek"],                 # Sekolah
-    "jobstreet": ["posisi_rekrutmen", "deskripsi_it"],  # Perusahaan/Corporate & UMKM
-    "glints": ["posisi_rekrutmen", "deskripsi_it"],     # Perusahaan/Corporate & UMKM
-    "lpse": ["penanggung_jawab"],                       # Vendor B2G / Kontraktor
+    "google": ["telp", "email", "website", "sosmed", "instagram", "facebook", "linkedin", "twitter_x", "tiktok"],            # Web Search (Kontak umum: WA/Telp, Email, Web, IG, FB, LI, X, TikTok)
+    "dapodik": ["npsn", "nama_kepsek", "email", "link_source"],  # Sekolah (NPSN, Kepsek, Email, & Link Kemendikdasmen)
+    "jobstreet": ["link_source"],                                 # Lowongan kerja
+    "glints": ["link_source"],                                    # Lowongan kerja
+    "lpse": ["link_source"],                                      # Vendor B2G / Pengadaan
 }
 
 # Mapping kategori ke sumber enrichment (PRD v1.1 §5.3)

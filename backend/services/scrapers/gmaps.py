@@ -6,18 +6,36 @@ Kategori utama:
 - UMKM, Retail, Resto/Kafe
 - Vendor B2G / Kontraktor
 """
+import os
 import re
+import shutil
+import tempfile
 import time
 import urllib.parse
+import uuid
 
 from playwright.sync_api import sync_playwright
 
 from backend.services.scrapers.base import BaseScraper
 from backend.services.cleaner import normalize_phone
+from backend.services.browser_profile import (
+    launch_login_browser_context,
+    get_login_profile_dir,
+    is_login_profile_ready,
+)
 
-# Regex filter untuk kategori sekolah
-VALID_SCHOOL = r'\b(paud|tk|tka|tkb|kb|playgroup|sd|sdn|sdi|smp|smpn|smpi|mts|mtsn|sma|sman|smai|smk|smkn|ma|man|mak|min|slb|universitas|institut|politeknik|akademi|sekolah|pesantren|ponpes)\b'
-INVALID_SCHOOL = r'\b(lpk|kursus|les|bimbel|toko|agen|pt|cv|yayasan|pelatihan|bengkel|tour|travel|printing|fotocopy|jasa|sewa|warung|koperasi|klinik|apotek|salon)\b'
+# Regex filter untuk kategori sekolah (mencakup singkatan Indonesia, bahasa Inggris, dan variasi Islam/Kristen)
+VALID_SCHOOL = (
+    r'(?i)\b('
+    r'paud|tk|tka|tkb|ra|ba|kb|playgroup|'
+    r'sd|sdn|sdi|sdit|sdtq|mi|min|'
+    r'smp|smpn|smpi|smpit|mts|mtsn|'
+    r'sma|sman|smai|smait|smk|smkn|ma|man|mak|'
+    r'slb|universitas|institut|politeknik|akademi|sekolah|pesantren|ponpes|'
+    r'school|high\s*school|junior\s*high|elementary|kindergarten|vocational|college|academy|madrasah'
+    r')\b'
+)
+INVALID_SCHOOL = r'(?i)\b(lpk|kursus|les|bimbel|toko|agen|pt|cv|pelatihan|bengkel|tour|travel|printing|fotocopy|jasa|sewa|warung|koperasi|klinik|apotek|salon)\b'
 
 # Mapping kategori PRD v1.1 ke keyword pencarian GMaps
 CATEGORY_KEYWORDS = {
@@ -41,18 +59,21 @@ CATEGORY_KEYWORDS = {
 
 # Mapping kategori ke sumber enrichment (PRD v1.1 §5.3)
 CATEGORY_ENRICHMENT = {
-    "sekolah": ["dapodik"],
-    "corporate": ["jobstreet", "glints"],
-    "perusahaan": ["jobstreet", "glints"],
-    "umkm": ["jobstreet", "glints"],
-    "retail": ["jobstreet", "glints"],
-    "resto": ["jobstreet", "glints"],
-    "restoran": ["jobstreet", "glints"],
-    "kafe": ["jobstreet", "glints"],
-    "cafe": ["jobstreet", "glints"],
-    "vendor": ["lpse"],
-    "kontraktor": ["lpse"],
-    "b2g": ["lpse"],
+    "sekolah": ["dapodik", "google"],
+    "corporate": ["jobstreet", "glints", "google"],
+    "perusahaan": ["jobstreet", "glints", "google"],
+    "umkm": ["google", "jobstreet", "glints"],
+    "retail": ["google", "jobstreet", "glints"],
+    "resto": ["google"],
+    "restoran": ["google"],
+    "kafe": ["google"],
+    "cafe": ["google"],
+    "rumah sakit": ["google"],
+    "klinik": ["google"],
+    "hotel": ["google"],
+    "vendor": ["lpse", "google"],
+    "kontraktor": ["lpse", "google"],
+    "b2g": ["lpse", "google"],
 }
 
 
@@ -66,7 +87,8 @@ def get_enrichment_sources(category: str) -> list[str]:
     for key, sources in CATEGORY_ENRICHMENT.items():
         if key in cat or cat in key:
             return sources
-    return []
+    # Default fallback untuk kategori umum adalah google search
+    return ["google"]
 
 
 # --- Instagram: hanya profil bisnis yang valid ---
@@ -84,8 +106,9 @@ IG_BLOCKED_SEGMENTS = {
 class GmapsScraper(BaseScraper):
     source = "gmaps"
 
-    def __init__(self, category: str = "sekolah", city: str = "salatiga", max_results: int = 100):
+    def __init__(self, category: str = "sekolah", city: str = "salatiga", max_results: int = 100, job_id: str | None = None):
         super().__init__(source=self.source, category=category, city=city, max_results=max_results)
+        self.job_id = job_id
         self._page = None  # page aktif — dipakai is_alive() untuk deteksi browser ditutup
 
     def is_alive(self) -> bool:
@@ -104,27 +127,27 @@ class GmapsScraper(BaseScraper):
         cat = self.category.strip().lower()
         if cat in ("sekolah", "paud", "sd", "smp", "sma", "smk") or "sekolah" in cat:
             n = name.lower()
-            if not re.search(VALID_SCHOOL, n) or re.search(INVALID_SCHOOL, n):
+            if not re.search(VALID_SCHOOL, n):
+                return False
+            # Jika mengandung entitas sekolah valid (misal 'Sekolah', 'School', 'SMK', 'SMA', 'SMP', 'SD'),
+            # jangan tolak hanya karena ada kata 'yayasan' di depannya.
+            if re.search(INVALID_SCHOOL, n) and not re.search(r'(?i)\b(sekolah|school|sd|smp|sma|smk|madrasah|pesantren|tk|paud|slb)\b', n):
                 return False
         return True
 
     def _extract_detail(self, page) -> dict:
         """Setelah klik listing, ekstrak semua field dari halaman detail."""
-        time.sleep(2)
+        time.sleep(1.5)
 
-        # Scroll panel detail (ala file lama scraper_gmaps_sekolah.py: Tab + PageDown×8)
-        # supaya bagian "Web result" termuat — di sitilah link kemendikdasmen, NPSN,
-        # & IG resmi bisnis (Sosmed). Jika tidak scroll, web result tak pernah termuat
-        # sehingga IG yang tertangkap dari atribusi foto/review (salah orang).
+        # Scroll panel detail ke bawah secara langsung agar link medsos / website termuat
         try:
-            page.keyboard.press("Tab")
-            time.sleep(0.5)
-            for _ in range(8):
-                page.keyboard.press("PageDown")
-                time.sleep(1.0)
+            page.evaluate("""() => {
+                const main = document.querySelector('div[role="main"]');
+                if (main) main.scrollTop = main.scrollHeight;
+            }""")
+            time.sleep(1.0)
         except Exception:
             pass
-        time.sleep(2)
 
         alamat = "-"
         try:
@@ -193,6 +216,30 @@ class GmapsScraper(BaseScraper):
                     website = clean_w
                     break
         instagram = self._find_instagram(page, unquoted)
+        facebook = ""
+        fb_match = re.search(r'https?://(?:www\.)?(?:facebook\.com|fb\.com)/[A-Za-z0-9_.\-]+', unquoted)
+        if fb_match:
+            cand_fb = fb_match.group(0).rstrip('.,;)')
+            if not any(b in cand_fb.lower() for b in ["sharer", "share", "policies", "help", "login"]):
+                facebook = cand_fb
+
+        linkedin = ""
+        li_match = re.search(r'https?://(?:www\.)?linkedin\.com/(?:company|school)/[A-Za-z0-9_.\-]+', unquoted)
+        if li_match:
+            linkedin = li_match.group(0).rstrip('.,;)')
+
+        twitter_x = ""
+        tw_match = re.search(r'https?://(?:www\.)?(?:twitter\.com|x\.com)/[A-Za-z0-9_]+', unquoted)
+        if tw_match:
+            cand_tw = tw_match.group(0).rstrip('.,;)')
+            if not any(b in cand_tw.lower() for b in ["intent", "share", "home", "search"]):
+                twitter_x = cand_tw
+
+        tiktok = ""
+        tt_match = re.search(r'https?://(?:www\.)?tiktok\.com/@[A-Za-z0-9_.\-]+', unquoted)
+        if tt_match:
+            tiktok = tt_match.group(0).rstrip('.,;)')
+
         if not kemendikdasmen_link:
             kem = re.search(r'(https?://[a-zA-Z0-9.\-]*kemendikdasmen\.go\.id/[^\s"\'<>\\&]+)', unquoted)
             if kem:
@@ -207,15 +254,19 @@ class GmapsScraper(BaseScraper):
             "kota": self.city,
             "link_gmaps": page.url,
             "website": website,
-            "sosmed": instagram,
+            "sosmed": instagram or facebook or linkedin or twitter_x or tiktok,
+            "instagram": instagram,
+            "facebook": facebook,
+            "linkedin": linkedin,
+            "twitter_x": twitter_x,
+            "tiktok": tiktok,
             "link_source": kemendikdasmen_link or "",
             "npsn": npsn,
             "status": "New",
         }
     def _profile_dir(self) -> str:
         """Profil Chrome persisten bersama — login sekali berlaku utk semua kota."""
-        import os
-        return os.path.expanduser("~/playwright_chrome_profile_gmaps")
+        return get_login_profile_dir()
 
     # ---- Ekstraksi Instagram (akurat, ala file lama tapi diperketat) ----
     def _clean_ig_url(self, url: str) -> str:
@@ -255,13 +306,11 @@ class GmapsScraper(BaseScraper):
     # ---- Browser login (akun Google utk Maps) ----
     def browser_status(self) -> dict:
         """Cek profil persisten: ada & berisi cookie login."""
-        import os
         profile = self._profile_dir()
-        cookie = os.path.join(profile, "Default", "Network", "Cookies")
         return {
             "profile": profile,
             "profile_exists": os.path.isdir(profile),
-            "has_cookies": os.path.isfile(cookie) and os.path.getsize(cookie) > 0,
+            "has_cookies": is_login_profile_ready(),
         }
 
     def browser_login(self) -> None:
@@ -292,82 +341,145 @@ class GmapsScraper(BaseScraper):
         self.emit_progress(0, 0, f"Membuka Google Maps untuk '{self._build_query()}'")
 
         with sync_playwright() as p:
-            context = p.chromium.launch_persistent_context(
-                user_data_dir=self._profile_dir(),
+            context, worker_dir = launch_login_browser_context(
+                p,
+                job_id=self.job_id,
                 headless=False,
-                channel="chrome",
-                ignore_https_errors=True,
                 args=["--start-maximized"],
             )
-            page = context.new_page()
-            self._page = page
-            url = f"https://www.google.com/maps/search/{urllib.parse.quote(self._build_query())}"
             try:
-                page.goto(url, timeout=60000)
+                page = context.pages[0] if context.pages else context.new_page()
+                self._page = page
+                url = f"https://www.google.com/maps/search/{urllib.parse.quote(self._build_query())}"
                 try:
-                    page.wait_for_selector('div[role="feed"]', timeout=20000)
-                except Exception:
-                    pass
-                time.sleep(4)
-
-                # scroll untuk memuat daftar
-                max_scroll = 5
-                last_count = 0
-                scroll_no_change = 0
-                while len(leads) < self.max_results and scroll_no_change < max_scroll:
-                    if self.is_cancelled():
-                        break
+                    page.goto(url, timeout=60000)
                     try:
-                        page.evaluate("""() => {
-                            const feed = document.querySelector('div[role="feed"]');
-                            if (feed) feed.scrollBy(0, 1000);
-                        }""")
-                        self.rate_limit()  # delay 1-3 detik
+                        page.wait_for_selector('div[role="feed"]', timeout=20000)
                     except Exception:
                         pass
-                    try:
-                        current = page.locator('div[role="feed"] a.hfpxzc').count()
-                    except Exception:
-                        current = 0
-                    if current == last_count:
-                        scroll_no_change += 1
-                    else:
-                        scroll_no_change = 0
-                        last_count = current
+                    time.sleep(4)
 
-                listings = page.locator('div[role="feed"] a.hfpxzc').all()
-                self.emit_progress(0, len(listings), f"Ditemukan {len(listings)} hasil")
+                    # scroll untuk memuat daftar
+                    max_scroll = 5
+                    last_count = 0
+                    scroll_no_change = 0
+                    current = 0
+                    while current < self.max_results and scroll_no_change < max_scroll:
+                        if self.is_cancelled():
+                            break
+                        try:
+                            page.evaluate("""() => {
+                                const feed = document.querySelector('div[role="feed"]');
+                                if (feed) feed.scrollBy(0, 1500);
+                            }""")
+                            self.rate_limit()  # delay 1-3 detik
+                        except Exception:
+                            pass
+                        try:
+                            current = page.locator('div[role="feed"] a.hfpxzc').count()
+                        except Exception:
+                            current = 0
 
-                processed: set[str] = set()
-                for i, listing in enumerate(listings):
-                    if len(leads) >= self.max_results or self.is_cancelled():
-                        break
-                    try:
-                        listing.scroll_into_view_if_needed()
-                        raw_name = listing.get_attribute("aria-label") or f"Item {i+1}"
-                        name = re.sub(r'\s*·?\s*Visited link\s*', '', raw_name, flags=re.IGNORECASE).strip()
-                        if name in processed:
+                        self.emit_progress(0, current, f"Memuat daftar Google Maps ({current} item ditemukan)...")
+
+                        # Cek apakah sudah mencapai akhir daftar
+                        try:
+                            is_end = page.evaluate("""() => {
+                                const endEl = document.querySelector('span.HlvSq');
+                                return endEl && endEl.innerText.length > 0;
+                            }""")
+                            if is_end:
+                                break
+                        except Exception:
+                            pass
+
+                        if current == last_count:
+                            scroll_no_change += 1
+                        else:
+                            scroll_no_change = 0
+                            last_count = current
+
+                    listings = page.locator('div[role="feed"] a.hfpxzc').all()
+                    self.emit_progress(0, len(listings), f"Ditemukan {len(listings)} hasil")
+
+                    processed: set[str] = set()
+                    for i, listing in enumerate(listings):
+                        if len(leads) >= self.max_results or self.is_cancelled():
+                            break
+                        try:
+                            # Scroll feed container via JS agar item ke-i pasti berada di viewport
+                            # dan dirender oleh virtual DOM Google Maps
+                            try:
+                                page.evaluate("""(idx) => {
+                                    const feed = document.querySelector('div[role="feed"]');
+                                    if (!feed) return;
+                                    const items = feed.querySelectorAll('a.hfpxzc');
+                                    if (items[idx]) {
+                                        items[idx].scrollIntoView({ block: 'center' });
+                                    } else {
+                                        feed.scrollBy(0, 400);
+                                    }
+                                }""", i)
+                                time.sleep(0.3)
+                            except Exception:
+                                pass
+
+                            try:
+                                raw_name = listing.get_attribute("aria-label", timeout=2500) or f"Item {i+1}"
+                            except Exception:
+                                # Jika get_attribute timeout karena virtual DOM belum render, scroll lagi dan re-try sekali
+                                try:
+                                    page.evaluate("""() => {
+                                        const feed = document.querySelector('div[role="feed"]');
+                                        if (feed) feed.scrollBy(0, 500);
+                                    }""")
+                                    time.sleep(0.5)
+                                    raw_name = listing.get_attribute("aria-label", timeout=2500) or f"Item {i+1}"
+                                except Exception:
+                                    continue
+
+                            name = re.sub(r'\s*·?\s*Visited link\s*', '', raw_name, flags=re.IGNORECASE).strip()
+                            if name in processed:
+                                continue
+                            if not self._is_target(name):
+                                self.emit_progress(len(leads), len(listings), f"Skip (bukan target): {name}")
+                                continue
+                            self.emit_progress(len(leads), len(listings), f"Mengekstrak: {name}")
+                            try:
+                                listing.click(timeout=4000)
+                            except Exception:
+                                try:
+                                    listing.click(force=True, timeout=2000)
+                                except Exception:
+                                    page.evaluate("""(idx) => {
+                                        const feed = document.querySelector('div[role="feed"]');
+                                        if (feed) {
+                                            const items = feed.querySelectorAll('a.hfpxzc');
+                                            if (items[idx]) items[idx].click();
+                                        }
+                                    }""", i)
+                            detail = self._extract_detail(page)
+                            detail["nama_instansi"] = name
+                            detail["source"] = self.source
+                            leads.append(detail)
+                            processed.add(name)
+                            target = min(self.max_results, len(listings))
+                            self.emit_progress(len(leads), len(listings), f"Berhasil mengekstrak ({len(leads)}/{target}): {name}")
+                            self.rate_limit()
+                        except Exception as e:
+                            self.emit_progress(len(leads), len(listings), f"Error item: {e}")
                             continue
-                        if not self._is_target(name):
-                            self.emit_progress(len(leads), len(listings), f"Skip (bukan target): {name}")
-                            continue
-                        self.emit_progress(len(leads), len(listings), f"Mengekstrak: {name}")
-                        listing.click(timeout=5000)
-                        detail = self._extract_detail(page)
-                        detail["nama_instansi"] = name
-                        detail["source"] = self.source
-                        leads.append(detail)
-                        processed.add(name)
-                        self.rate_limit()
-                    except Exception as e:
-                        self.emit_progress(len(leads), len(listings), f"Error item: {e}")
-                        continue
-            except Exception as e:
-                self.emit_progress(len(leads), len(leads), f"Error browser: {e}")
+                except Exception as e:
+                    self.emit_progress(len(leads), len(leads), f"Error browser: {e}")
             finally:
                 self._page = None
                 try:
                     context.close()
                 except Exception:
                     pass
+                if worker_dir:
+                    try:
+                        shutil.rmtree(worker_dir, ignore_errors=True)
+                    except Exception:
+                        pass
         return leads

@@ -6,13 +6,18 @@ from sqlalchemy.orm import Session
 
 from backend.models import Category, City, Lead, ScrapeJob
 from backend.services.cleaner import clean_lead
+from backend.services.code_generator import (
+    generate_category_code,
+    generate_city_code,
+    generate_lead_code,
+)
 
 # Field base + extras yang bisa dipakai upsert
 LEAD_FIELDS = [
-    "source", "priority", "nama_instansi", "kategori", "telp", "email",
-    "alamat", "kota", "link_gmaps", "website", "sosmed", "link_source",
-    "status", "npsn", "nama_kepsek", "posisi_rekrutmen", "deskripsi_it",
-    "penanggung_jawab",
+    "kode", "source", "priority", "nama_instansi", "kategori", "telp", "email",
+    "alamat", "kota", "link_gmaps", "website", "sosmed",
+    "instagram", "facebook", "linkedin", "twitter_x", "tiktok", "link_source",
+    "status", "npsn", "nama_kepsek",
 ]
 
 # Field yang dinormalisasi ke tabel lookup (bukan kolom string langsung)
@@ -20,6 +25,7 @@ FK_FIELDS = {"kategori": "category_id", "kota": "city_id"}
 
 # Kolom yang boleh dipakai sorting (whitelist aman dari SQL injection)
 SORTABLE_COLUMNS = {
+    "kode": lambda: Lead.kode,
     "nama_instansi": lambda: Lead.nama_instansi,
     "kategori": lambda: Category.name,
     "telp": lambda: Lead.telp,
@@ -29,14 +35,16 @@ SORTABLE_COLUMNS = {
     "link_gmaps": lambda: Lead.link_gmaps,
     "website": lambda: Lead.website,
     "sosmed": lambda: Lead.sosmed,
+    "instagram": lambda: Lead.instagram,
+    "facebook": lambda: Lead.facebook,
+    "linkedin": lambda: Lead.linkedin,
+    "twitter_x": lambda: Lead.twitter_x,
+    "tiktok": lambda: Lead.tiktok,
     "link_source": lambda: Lead.link_source,
     "source": lambda: Lead.source,
     "status": lambda: Lead.status,
     "npsn": lambda: Lead.npsn,
     "nama_kepsek": lambda: Lead.nama_kepsek,
-    "posisi_rekrutmen": lambda: Lead.posisi_rekrutmen,
-    "deskripsi_it": lambda: Lead.deskripsi_it,
-    "penanggung_jawab": lambda: Lead.penanggung_jawab,
     "created_at": lambda: Lead.created_at,
     "updated_at": lambda: Lead.updated_at,
 }
@@ -50,7 +58,8 @@ def _get_or_create_category(db: Session, name: str) -> Category | None:
     found = db.query(Category).filter(func.lower(Category.name) == name.lower()).first()
     if found:
         return found
-    cat = Category(name=name)
+    cat_code = generate_category_code(db, name)
+    cat = Category(name=name, kode=cat_code)
     db.add(cat)
     try:
         db.flush()
@@ -69,7 +78,8 @@ def _get_or_create_city(db: Session, name: str) -> City | None:
     found = db.query(City).filter(func.lower(City.name) == name.lower()).first()
     if found:
         return found
-    city = City(name=name)
+    city_code = generate_city_code(db, name)
+    city = City(name=name, kode=city_code)
     db.add(city)
     try:
         db.flush()
@@ -87,13 +97,16 @@ def _resolve_refs(db: Session, clean: dict) -> tuple[Category | None, City | Non
     return category, city
 
 
-def _build_lead(clean: dict, category: Category | None, city: City | None) -> Lead:
-    """Buat instance Lead dari data bersih + referensi FK."""
+def _build_lead(db: Session, clean: dict, category: Category | None, city: City | None) -> Lead:
+    """Buat instance Lead dari data bersih + referensi FK + generate kode bisnis unik."""
     kwargs = {f: clean.get(f) for f in LEAD_FIELDS}
     kwargs.pop("kategori", None)
     kwargs.pop("kota", None)
     kwargs["category_id"] = category.id if category else None
     kwargs["city_id"] = city.id if city else None
+    if not kwargs.get("kode"):
+        cat_name = category.name if category else (clean.get("kategori") or "GEN")
+        kwargs["kode"] = generate_lead_code(db, cat_name)
     return Lead(**kwargs)
 
 
@@ -121,6 +134,11 @@ def upsert_lead(db: Session, data: dict) -> tuple[Lead, bool]:
     )
     if lead:
         changed = False
+        # Generate kode jika belum ada
+        if not lead.kode:
+            cat_name = category.name if category else "GEN"
+            lead.kode = generate_lead_code(db, cat_name)
+            changed = True
         # FK kategori/kota
         if category is not None and lead.category_id in (None, 0):
             lead.category_id = category.id
@@ -130,7 +148,7 @@ def upsert_lead(db: Session, data: dict) -> tuple[Lead, bool]:
             changed = True
         # field biasa: isi yang kosong / placeholder
         for f in LEAD_FIELDS:
-            if f in FK_FIELDS:
+            if f in FK_FIELDS or f == "kode":
                 continue
             new_val = clean.get(f)
             old_val = getattr(lead, f)
@@ -143,24 +161,28 @@ def upsert_lead(db: Session, data: dict) -> tuple[Lead, bool]:
         db.refresh(lead)
         return lead, False
     # create baru
-    lead = _build_lead(clean, category, city)
+    lead = _build_lead(db, clean, category, city)
     db.add(lead)
     db.commit()
     db.refresh(lead)
     return lead, True
 
 
-def save_raw_items(db: Session, items: list[dict], source: str) -> dict:
-    """Simpan banyak hasil scraper. Return statistik."""
+def save_raw_items(db: Session, items: list[dict], source: str, progress_cb=None) -> dict:
+    """Simpan banyak hasil scraper dengan callback progress bertahap. Return statistik."""
     created = 0
     updated = 0
-    for item in items:
+    total = len(items)
+    for i, item in enumerate(items):
         item.setdefault("source", source)
         _lead, created_flag = upsert_lead(db, item)
         if created_flag:
             created += 1
         else:
             updated += 1
+        if progress_cb:
+            nama = (item.get("nama_instansi") or f"Data #{i+1}").strip()
+            progress_cb(i + 1, total, f"Menyimpan ke database: {i + 1}/{total} — {nama}")
     return {"created": created, "updated": updated}
 
 
@@ -280,6 +302,7 @@ def query_leads(
         like = f"%{search}%"
         q = q.filter(
             or_(
+                Lead.kode.ilike(like),
                 Lead.nama_instansi.ilike(like),
                 Lead.alamat.ilike(like),
                 Lead.email.ilike(like),
@@ -333,12 +356,37 @@ def stats(db: Session) -> dict:
     }
 
 
+import re
+import uuid
+
 # ---- ScrapeJob helpers ----
 
-def create_job(db: Session, source: str, category: str, city: str, max_results: int) -> ScrapeJob:
-    import uuid
+def generate_job_id(category: str) -> str:
+    """Generate ID job format ringkas: SCRP_{kategori[:14]}_{YYYYMMDD_HHMMSS}.
+
+    Total panjang dijamin <= 35 karakter sehingga aman di kolom VARCHAR(36).
+    """
+    clean_cat = re.sub(r'[^a-zA-Z0-9]+', '_', (category or "general").strip().lower()).strip('_')[:14] or "general"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return f"SCRP_{clean_cat}_{timestamp}"
+
+
+def create_job(
+    db: Session,
+    source: str,
+    category: str,
+    city: str,
+    max_results: int,
+    job_id: str | None = None,
+) -> ScrapeJob:
+    jid = job_id or generate_job_id(category)
+    # Pastikan jid unik jika ada bentrok detik yang sama
+    existing = db.query(ScrapeJob).filter(ScrapeJob.id == jid).first()
+    if existing:
+        jid = f"{jid[:30]}_{uuid.uuid4().hex[:4]}"
+
     job = ScrapeJob(
-        id=str(uuid.uuid4()),
+        id=jid,
         source=source,
         category=category,
         city=city,
@@ -346,6 +394,8 @@ def create_job(db: Session, source: str, category: str, city: str, max_results: 
         status="pending",
         progress=0,
         total_found=0,
+        items_created=0,
+        items_updated=0,
         log="",
         started_at=datetime.utcnow(),
     )
@@ -353,6 +403,37 @@ def create_job(db: Session, source: str, category: str, city: str, max_results: 
     db.commit()
     db.refresh(job)
     return job
+
+
+def find_or_create_job(
+    db: Session,
+    source: str,
+    category: str,
+    city: str,
+    max_results: int,
+    job_id: str | None = None,
+) -> ScrapeJob:
+    """Jika job_id diberikan (dari aksi Ulangi / Lengkapi): update data riwayat job yang diklik.
+    Jika job_id None: buat job baru (tidak pernah menimpa job sebelumnya).
+    """
+    if not job_id:
+        return create_job(db, source, category, city, max_results)
+
+    job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
+    if job:
+        job.status = "pending"
+        job.started_at = datetime.utcnow()
+        job.finished_at = None
+        job.max_results = max_results
+        job.progress = 0
+        job.items_created = 0
+        job.items_updated = 0
+        job.log = f"Job diperbarui pada {datetime.utcnow().strftime('%d %b %Y %H:%M')}\n"
+        db.commit()
+        db.refresh(job)
+        return job
+
+    return create_job(db, source, category, city, max_results, job_id=job_id)
 
 
 def update_job(db: Session, job_id: str, **fields) -> None:

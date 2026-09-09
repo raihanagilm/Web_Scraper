@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=4" />
+  <link rel="stylesheet" href="style.css?v=9" />
 </head>
 <body>
 
@@ -88,7 +88,7 @@
           <form id="scrape-form" class="form-row">
             <div><label for="scrape-keyword">Kata Kunci Pencarian</label><input id="scrape-keyword" type="text" value="sekolah" placeholder="mis. sekolah, restoran, perusahaan" required /></div>
             <div><label for="scrape-city">Kota</label><input id="scrape-city" type="text" value="salatiga" placeholder="mis. salatiga, semarang, jakarta" required /></div>
-            <div><label for="scrape-max">Maks. hasil</label><input id="scrape-max" type="number" value="100" min="1" max="500" placeholder="mis. 100" required /></div>
+            <div><label for="scrape-max">Maks. hasil</label><input id="scrape-max" type="number" value="50" min="1" max="50" placeholder="mis. 50" required /></div>
             <button type="button" id="btn-start-scrape" class="btn btn-primary">Mulai Scrape</button>
           </form>
           <div class="browser-row">
@@ -110,7 +110,7 @@
           <table>
             <thead><tr>
               <th class="th-sort" data-jsort="started_at">Waktu <span class="sort-arrow" aria-hidden="true"></span></th>
-              <th class="th-sort" data-jsort="source">Sumber <span class="sort-arrow" aria-hidden="true"></span></th>
+              <th class="th-sort" data-jsort="id">ID Job <span class="sort-arrow" aria-hidden="true"></span></th>
               <th class="th-sort" data-jsort="category">Kategori <span class="sort-arrow" aria-hidden="true"></span></th>
               <th class="th-sort" data-jsort="city">Kota <span class="sort-arrow" aria-hidden="true"></span></th>
               <th class="th-sort" data-jsort="status">Status <span class="sort-arrow" aria-hidden="true"></span></th>
@@ -123,11 +123,24 @@
         </div>
       </section>
 
-      <!-- Enrichment (dipisah) — mulai enrichment dari ⚡ Enrich di Riwayat Job halaman Scrape -->
+      <!-- Enrichment (dipisah) -->
       <section id="page-enrichment" class="page hidden">
         <div class="page-head">
           <h2>Enrichment Data</h2>
-          <p class="muted" style="margin:0">Memantulkan job enrichment (field kosong lead seed diisi dari sumber pendukung). <b>Mulai enrichment</b> dari tombol ⚡ Enrich di halaman Scrape.</p>
+          <p class="muted" style="margin:0">Lengkapi field kosong pada data leads (NPSN, Kepala Sekolah, Email resmi, dsb.) dari sumber pendukung.</p>
+        </div>
+
+        <!-- Panduan Enrichment -->
+        <div class="card mt" style="background:#f4f9f5; border-color:#c9e0d1;">
+          <div style="display:flex; align-items:flex-start; gap:12px;">
+            <div style="font-size:22px; line-height:1;">💡</div>
+            <div>
+              <h3 style="margin-bottom:4px; color:var(--primary-hover);">Cara Melakukan Enrichment Data</h3>
+              <p class="muted" style="margin:0; line-height:1.5;">
+                Enrichment dilakukan langsung dari data hasil scraping. Buka menu <strong>Scrape Data</strong>, lalu klik tombol <strong>⚡ Enrich</strong> pada baris riwayat job yang ingin Anda lengkapi datanya. Anda dapat memilih sumber data pendukung (Google Search, Dapodik, Jobstreet, Glints, atau LPSE) sesuai kebutuhan entitas.
+              </p>
+            </div>
+          </div>
         </div>
 
         <div class="card mt">
@@ -168,7 +181,7 @@
         <div class="card">
           <div class="filters">
             <input id="f-search" type="text" placeholder="Cari nama / alamat / email / kategori..." aria-label="Pencarian lead" />
-            <select id="f-source" aria-label="Filter sumber"><option value="">Semua sumber</option></select>
+            <select id="f-category" aria-label="Filter kategori"><option value="">Semua kategori</option></select>
             <select id="f-kota" aria-label="Filter kota"><option value="">Semua kota</option></select>
             <select id="f-status" aria-label="Filter status">
               <option value="">Semua status</option>
@@ -180,8 +193,14 @@
         </div>
         <div id="bulk-bar" class="bulk-bar hidden">
           <span id="bulk-count">0 lead dipilih</span>
-          <button id="btn-bulk-delete" class="btn btn-danger btn-sm">Hapus Terpilih</button>
-          <button id="btn-clear-selection" class="btn btn-ghost btn-sm" title="Batal pilih semua (✕)">✕ Batal</button>
+          <button id="btn-bulk-delete" class="btn btn-danger btn-sm" style="display:inline-flex; align-items:center; gap:5px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="m19 6-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            <span>Hapus Terpilih</span>
+          </button>
+          <button id="btn-clear-selection" class="btn btn-ghost btn-sm" title="Batal pilih semua" style="display:inline-flex; align-items:center; gap:5px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            <span>Batal</span>
+          </button>
         </div>
         <div class="card table-card">
           <div class="table-scroll">
@@ -189,6 +208,7 @@
             <thead><tr>
               <th class="col-check"><input type="checkbox" id="sel-all" aria-label="Pilih semua lead di halaman ini" /></th>
               <th>No</th>
+              <th class="th-sort" data-sort="kode">Kode ID <span class="sort-arrow" aria-hidden="true"></span></th>
               <th class="th-sort" data-sort="nama_instansi">Nama Instansi <span class="sort-arrow" aria-hidden="true"></span></th>
               <th class="th-sort" data-sort="kategori">Bidang Usaha / Kategori <span class="sort-arrow" aria-hidden="true"></span></th>
               <th class="th-sort" data-sort="telp">No. WA / Telepon <span class="sort-arrow" aria-hidden="true"></span></th>
@@ -200,9 +220,6 @@
               <th class="th-sort" data-sort="sosmed">Akun Media Sosial <span class="sort-arrow" aria-hidden="true"></span></th>
               <th class="th-sort" data-sort="npsn">NPSN <span class="sort-arrow" aria-hidden="true"></span></th>
               <th class="th-sort" data-sort="nama_kepsek">Nama Kepsek <span class="sort-arrow" aria-hidden="true"></span></th>
-              <th class="th-sort" data-sort="posisi_rekrutmen">Posisi Rekrutmen <span class="sort-arrow" aria-hidden="true"></span></th>
-              <th class="th-sort" data-sort="deskripsi_it">Deskripsi IT <span class="sort-arrow" aria-hidden="true"></span></th>
-              <th class="th-sort" data-sort="penanggung_jawab">Penanggung Jawab <span class="sort-arrow" aria-hidden="true"></span></th>
               <th class="th-sort" data-sort="link_source">Link Kemendikdasmen <span class="sort-arrow" aria-hidden="true"></span></th>
               <th class="th-sort" data-sort="source">Sumber <span class="sort-arrow" aria-hidden="true"></span></th>
               <th class="th-sort" data-sort="status">Status <span class="sort-arrow" aria-hidden="true"></span></th>
@@ -223,7 +240,10 @@
       <section id="page-dedup" class="page hidden">
         <div class="page-head">
           <h2>Review Duplikat</h2>
-          <button id="btn-dedup-reload" class="btn btn-ghost">Muat ulang</button>
+          <button id="btn-dedup-reload" class="btn btn-ghost" style="display:inline-flex; align-items:center; gap:6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+            <span>Muat ulang</span>
+          </button>
         </div>
         <p id="dedup-empty" class="muted hidden">Tidak ada kandidat duplikat. Data bersih ✓</p>
         <div id="dedup-list"></div>
@@ -241,20 +261,23 @@
       <form id="edit-form" class="modal-body">
         <input type="hidden" id="edit-id" />
         <div class="form-grid">
+          <label>Kode ID<input id="edit-kode" type="text" readonly style="background:#f1f5f9;font-family:monospace;font-weight:600;" /></label>
           <label>Nama Instansi<input id="edit-nama_instansi" type="text" required /></label>
           <label>Kategori<input id="edit-kategori" type="text" list="kategori-list" placeholder="mis. sekolah" /><datalist id="kategori-list"></datalist></label>
           <label>No. WA / Telepon<input id="edit-telp" type="text" /></label>
-          <label>Alamat Email<input id="edit-email" type="email" /></label>
+          <label>Alamat Email (bisa &gt;1, pisahkan koma)<input id="edit-email" type="text" placeholder="email1@domain.com, email2@domain.com" /></label>
           <label class="span-2">Alamat Lengkap<textarea id="edit-alamat" rows="2"></textarea></label>
           <label>Kota<input id="edit-kota" type="text" list="kota-list" placeholder="mis. salatiga" /><datalist id="kota-list"></datalist></label>
           <label>Link Gmaps<input id="edit-link_gmaps" type="url" /></label>
           <label>Link Website<input id="edit-website" type="url" /></label>
-          <label>Akun Media Sosial<input id="edit-sosmed" type="text" /></label>
+          <label>Instagram<input id="edit-instagram" type="text" placeholder="https://instagram.com/... atau @username" /></label>
+          <label>Facebook<input id="edit-facebook" type="text" placeholder="https://facebook.com/..." /></label>
+          <label>LinkedIn<input id="edit-linkedin" type="text" placeholder="https://linkedin.com/in/..." /></label>
+          <label>Twitter / X<input id="edit-twitter_x" type="text" placeholder="https://x.com/..." /></label>
+          <label>TikTok<input id="edit-tiktok" type="text" placeholder="https://tiktok.com/@... atau @username" /></label>
+          <label>Media Sosial Lainnya<input id="edit-sosmed" type="text" /></label>
           <label>NPSN<input id="edit-npsn" type="text" /></label>
           <label>Nama Kepsek<input id="edit-nama_kepsek" type="text" /></label>
-          <label>Posisi Rekrutmen<input id="edit-posisi_rekrutmen" type="text" /></label>
-          <label class="span-2">Deskripsi IT<textarea id="edit-deskripsi_it" rows="2"></textarea></label>
-          <label>Penanggung Jawab<input id="edit-penanggung_jawab" type="text" /></label>
           <label>Status
             <select id="edit-status">
               <option>New</option><option>Contacted</option><option>Follow Up</option><option>Deal</option><option>Rejected</option>
@@ -283,6 +306,98 @@
     </div>
   </div>
 
-  <script src="app.js?v=8"></script>
+  <!-- ===== MODAL PILIHAN ENRICHMENT ===== -->
+  <div id="modal-enrich-overlay" class="modal-overlay hidden">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="enrich-modal-title" style="max-width: 540px;">
+      <div class="modal-head">
+        <h3 id="enrich-modal-title">⚡ Pilih Sumber Enrichment Data</h3>
+        <button id="modal-enrich-close" class="btn-icon modal-x" aria-label="Tutup" title="Tutup">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="enrich-target-info" class="enrich-target-badge">
+          <span>🎯 Target: <strong id="enrich-modal-target-text">—</strong></span>
+        </div>
+        <p class="muted" style="font-size:12.5px; margin-bottom:8px;">
+          Pilih sumber data yang paling relevan untuk melengkapi kontak & profil yang masih kosong pada entitas ini:
+        </p>
+
+        <div class="enrich-source-list">
+          <!-- Opsi Google -->
+          <label class="enrich-source-card" data-source="google">
+            <input type="radio" name="modal_enrich_source" value="google" checked />
+            <div class="enrich-card-content">
+              <div class="enrich-card-title">
+                <span>🌐 Pencarian Google / Web</span>
+                <span class="enrich-badge-rec" id="badge-rec-google">Rekomendasi Umum</span>
+              </div>
+              <div class="enrich-card-fields">Field: <strong>No. WA/Telepon, Alamat Email, Link Website, Instagram</strong></div>
+              <div class="enrich-card-targets">Cocok untuk: Rumah Sakit, Klinik, Hotel, Toko, Kafe/Restoran, UMKM, dll.</div>
+            </div>
+          </label>
+
+          <!-- Opsi Dapodik -->
+          <label class="enrich-source-card" data-source="dapodik">
+            <input type="radio" name="modal_enrich_source" value="dapodik" />
+            <div class="enrich-card-content">
+              <div class="enrich-card-title">
+                <span>🏫 Dapodik Kemendikbud</span>
+                <span class="enrich-badge-rec hidden" id="badge-rec-dapodik">Rekomendasi Sekolah</span>
+              </div>
+              <div class="enrich-card-fields">Field: <strong>NPSN, Nama Kepala Sekolah, Email Resmi Sekolah</strong></div>
+              <div class="enrich-card-targets">Cocok untuk: SD, SMP, SMA, SMK, Madrasah, Sekolah Internasional</div>
+            </div>
+          </label>
+
+          <!-- Opsi Jobstreet -->
+          <label class="enrich-source-card" data-source="jobstreet">
+            <input type="radio" name="modal_enrich_source" value="jobstreet" />
+            <div class="enrich-card-content">
+              <div class="enrich-card-title">
+                <span>💼 Jobstreet</span>
+                <span class="enrich-badge-rec hidden" id="badge-rec-jobstreet">Rekomendasi Corporate</span>
+              </div>
+              <div class="enrich-card-fields">Field: <strong>Posisi Rekrutmen, Deskripsi Kebutuhan IT</strong></div>
+              <div class="enrich-card-targets">Cocok untuk: Perusahaan, Bisnis Corporate, Startup (Jateng)</div>
+            </div>
+          </label>
+
+          <!-- Opsi Glints -->
+          <label class="enrich-source-card" data-source="glints">
+            <input type="radio" name="modal_enrich_source" value="glints" />
+            <div class="enrich-card-content">
+              <div class="enrich-card-title">
+                <span>💼 Glints</span>
+                <span class="enrich-badge-rec hidden" id="badge-rec-glints">Rekomendasi Corporate</span>
+              </div>
+              <div class="enrich-card-fields">Field: <strong>Posisi Rekrutmen, Deskripsi Kebutuhan IT</strong></div>
+              <div class="enrich-card-targets">Cocok untuk: Perusahaan, Industri, Tech & Modern Businesses</div>
+            </div>
+          </label>
+
+          <!-- Opsi LPSE -->
+          <label class="enrich-source-card" data-source="lpse">
+            <input type="radio" name="modal_enrich_source" value="lpse" />
+            <div class="enrich-card-content">
+              <div class="enrich-card-title">
+                <span>🏛️ LPSE Daerah</span>
+                <span class="enrich-badge-rec hidden" id="badge-rec-lpse">Rekomendasi Vendor</span>
+              </div>
+              <div class="enrich-card-fields">Field: <strong>Penanggung Jawab Pengadaan</strong></div>
+              <div class="enrich-card-targets">Cocok untuk: Vendor B2G, Kontraktor Pengadaan Pemerintah</div>
+            </div>
+          </label>
+        </div>
+
+        <p id="modal-enrich-error" class="login-error hidden" style="text-align:left;"></p>
+
+        <div class="modal-foot">
+          <button type="button" id="modal-enrich-cancel" class="btn btn-ghost">Batal</button>
+          <button type="button" id="modal-enrich-submit" class="btn btn-primary">⚡ Mulai Enrichment</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=15"></script>
 </body>
 </html>

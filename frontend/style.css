@@ -390,6 +390,30 @@ th.col-check, td.col-check { text-align: center; }
   background: #fff;
 }
 .enrich-inline [data-emsg] { width: 100%; margin-top: 4px; }
+
+/* Baris dropdown Data Belum Lengkap di Riwayat Enrichment */
+.incomplete-row td { background: #f8faf9; border-left: 3px solid var(--primary); padding: 12px 16px; }
+.incomplete-box { display: flex; flex-direction: column; gap: 10px; }
+.incomplete-header { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+.incomplete-list { display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow-y: auto; padding-right: 4px; }
+.incomplete-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+.incomplete-info { flex: 1; min-width: 0; }
+.incomplete-title { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--text); }
+.incomplete-loc { color: var(--muted); font-size: 12px; margin: 3px 0; }
+.incomplete-fields { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.incomplete-actions { flex-shrink: 0; }
+.incomplete-empty { padding: 8px 0; font-size: 13px; display: flex; align-items: center; }
+
 .bulk-bar {
   display: flex;
   align-items: center;
@@ -504,10 +528,284 @@ th.col-check, td.col-check { text-align: center; }
 .dup-group { margin-bottom: 16px; }
 .dup-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
 .dup-reason { color: var(--muted); font-size: 13px; }
-.dup-actions { display: flex; gap: 8px; margin-left: auto; }
-.dup-group .table-card {
-  border: 1px solid var(--border);
-  border-radius: 8px;
+/* Layout Proporsional Kolom Tabel Review Duplikat agar pas di layar */
+.dup-group table {
+  width: 100%;
+}
+.dup-group th, .dup-group td {
+  padding: 10px 12px;
+  font-size: 12.5px;
+  vertical-align: middle;
+}
+.dup-group thead th {
+  white-space: nowrap;
+}
+.dup-group .col-instansi {
+  min-width: 160px;
+  max-width: 220px;
+  word-break: break-word;
+}
+.dup-group .col-kategori {
+  min-width: 155px;
+}
+.dup-group .col-alamat {
+  min-width: 180px;
+  max-width: 320px;
+  word-break: break-word;
+  white-space: normal;
+  line-height: 1.4;
+}
+.dup-group .col-kota {
+  min-width: 80px;
+  max-width: 110px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dup-group .col-gmaps {
+  min-width: 150px;
+  max-width: 220px;
+  text-align: left;
+}
+.dup-group .col-dups {
+  min-width: 280px;
+  max-width: 520px;
+}
+.dup-group .col-aksi {
+  width: 80px;
+  text-align: center;
+}
+
+
+/* ===== DEDUP TABLE & QUICK CLEAR ===== */
+.dup-items-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 280px;
+  max-width: 500px;
+}
+.dup-field-chip {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  background: #f8faf9;
+  border: 1px solid #e1e8e3;
+  color: var(--text);
+  line-height: 1.35;
+}
+.dup-field-chip.is-duplicate {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+.dup-chip-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.dup-field-chip.is-duplicate .dup-chip-icon {
+  color: #dc2626;
+}
+.dup-chip-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--muted);
+  flex-shrink: 0;
+  letter-spacing: 0.3px;
+  margin-top: 1px;
+}
+.dup-field-chip.is-duplicate .dup-chip-label {
+  color: #b91c1c;
+}
+.dup-chip-val {
+  word-break: break-all;
+  white-space: normal;
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.35;
+}
+.dup-chip-val a {
+  color: inherit;
+  text-decoration: underline;
+  word-break: break-all;
+}
+.btn-chip-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  color: #991b1b;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.btn-chip-clear:hover {
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #dc2626;
+}
+.btn-chip-clear-mini {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 50%;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+.btn-chip-clear-mini:hover {
+  background: #fee2e2;
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+
+/* Link Google Maps Full / Truncated URL */
+.dup-link-wrap {
+  min-width: 140px;
+  max-width: 260px;
+  word-break: break-all;
+  white-space: normal;
+  line-height: 1.35;
+}
+.link-gmaps-full,
+.link-gmaps-truncated {
+  color: #1d4ed8;
+  font-size: 11px;
+  font-family: var(--mono);
+  text-decoration: underline;
+  word-break: break-all;
+  display: inline-block;
+}
+.link-gmaps-full:hover,
+.link-gmaps-truncated:hover {
+  color: #1e40af;
+}
+
+/* Chips shortcut hapus data di Tabel Results */
+.result-chip-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  min-width: 130px;
+}
+.result-field-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px;
+  border-radius: 5px;
+  font-size: 11px;
+  background: #f8faf9;
+  border: 1px solid #e1e8e3;
+  color: var(--text);
+  line-height: 1.25;
+  max-width: 100%;
+  transition: all 0.15s ease;
+}
+.result-field-chip:hover {
+  border-color: #cbd5e1;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+.result-field-chip.chip-email { background: #f0fdf4; border-color: #dcfce7; }
+.result-field-chip.chip-web { background: #f8fafc; border-color: #e2e8f0; }
+.result-field-chip.chip-phone { background: #f8faf9; border-color: #e2e8f0; }
+.result-field-chip.chip-social { background: #faf5ff; border-color: #f3e8ff; }
+.result-field-chip.chip-ig { background: #fdf2f8; border-color: #fbcfe8; }
+.result-field-chip.chip-fb { background: #eff6ff; border-color: #bfdbfe; }
+.result-field-chip.chip-li { background: #f0fdfa; border-color: #ccfbf1; }
+.result-field-chip.chip-x  { background: #f8fafc; border-color: #e2e8f0; }
+.result-field-chip.chip-tt { background: #fdf4ff; border-color: #f5d0fe; }
+
+.result-chip-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.result-chip-text {
+  word-break: break-all;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: inherit;
+  text-decoration: none;
+}
+.result-chip-text:hover {
+  text-decoration: underline;
+  color: var(--primary);
+}
+.btn-result-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border-radius: 50%;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+.btn-result-clear:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+
+/* Aksi tombol row */
+.btn-action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-action-icon.btn-action-edit {
+  color: var(--primary);
+}
+.btn-action-icon.btn-action-edit:hover {
+  background: #eef5f0;
+  border-color: #c9e0d1;
+}
+.btn-action-icon.btn-action-delete {
+  color: var(--danger);
+}
+.btn-action-icon.btn-action-delete:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
 }
 
 @media (max-width: 900px) {
@@ -515,4 +813,277 @@ th.col-check, td.col-check { text-align: center; }
   .main { padding: 18px; }
   .sidebar { width: 190px; }
 }
+
+/* ===== MODAL ENRICHMENT OPTIONS ===== */
+.enrich-target-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #eef5f0;
+  border: 1px solid #c9e0d1;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--primary-hover);
+  margin-bottom: 14px;
+  width: 100%;
+}
+.enrich-source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 0 16px;
+}
+.enrich-source-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+  background: #fff;
+}
+.enrich-source-card:hover {
+  border-color: var(--primary);
+  background: #fbfdfc;
+}
+.enrich-source-card.selected {
+  border-color: var(--primary);
+  background: #f2f8f4;
+}
+.enrich-source-card input[type="radio"] {
+  margin-top: 3px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.enrich-card-content {
+  flex: 1;
+}
+.enrich-card-title {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.enrich-badge-rec {
+  background: #2f6b4f;
+  color: #fff;
+  font-size: 10.5px;
+  padding: 1px 7px;
+  border-radius: 99px;
+  font-weight: 500;
+}
+.enrich-card-fields {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.enrich-card-targets {
+  font-size: 11.5px;
+  color: #557262;
+  margin-top: 2px;
+}
+
+/* ===== SOCIAL CHIPS & MULTI-EMAIL ===== */
+.social-chips-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.social-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.social-chip svg {
+  flex-shrink: 0;
+}
+.chip-ig {
+  background: #fdf2f4;
+  color: #c13584;
+  border-color: #fbcfe8;
+}
+.chip-ig:hover {
+  background: #c13584;
+  color: #fff;
+}
+.chip-fb {
+  background: #eff6ff;
+  color: #1877f2;
+  border-color: #bfdbfe;
+}
+.chip-fb:hover {
+  background: #1877f2;
+  color: #fff;
+}
+.chip-li {
+  background: #f0f9ff;
+  color: #0077b5;
+  border-color: #bae6fd;
+}
+.chip-li:hover {
+  background: #0077b5;
+  color: #fff;
+}
+.chip-x {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+.chip-x:hover {
+  background: #0f172a;
+  color: #fff;
+}
+.chip-gen {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #e2e8f0;
+}
+.chip-gen:hover {
+  background: #475569;
+  color: #fff;
+}
+
+.email-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.email-item {
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+/* Quick-clear Result Chips (Gambar 1 style) */
+.result-chip-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 150px;
+  max-width: 280px;
+}
+
+.result-field-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 11.5px;
+  line-height: 1.3;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.result-field-chip:hover {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+}
+
+.result-field-chip .chip-icon {
+  display: flex;
+  align-items: center;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.result-field-chip .chip-label {
+  font-weight: 700;
+  font-size: 10.5px;
+  letter-spacing: 0.3px;
+  color: #475569;
+  flex-shrink: 0;
+}
+
+.result-field-chip .chip-val {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.result-field-chip.chip-email {
+  background: #fff5f5;
+  border-color: #fed7d7;
+}
+.result-field-chip.chip-email .chip-label {
+  color: #c53030;
+}
+.result-field-chip.chip-email .chip-icon {
+  color: #e53e3e;
+}
+
+.result-field-chip.chip-web {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+.result-field-chip.chip-web .chip-label {
+  color: #15803d;
+}
+
+.btn-result-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: #e2e8f0;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  margin-left: auto;
+  transition: all 0.15s ease;
+}
+
+.btn-result-clear:hover {
+  background: #fee2e2;
+  color: #ef4444;
+  transform: scale(1.1);
+}
+
+.chip-tiktok {
+  background: #000000;
+  color: #ffffff;
+  border-color: #000000;
+}
+.chip-tiktok:hover {
+  background: #1e293b;
+  color: #38bdf8;
+}
+
+/* GMaps Truncated Link in Review Duplikat */
+.link-gmaps-truncated {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: var(--primary, #0284c7);
+  text-decoration: underline;
+  word-break: break-all;
+  display: inline-block;
+  max-width: 320px;
+  line-height: 1.3;
+}
+.link-gmaps-truncated:hover {
+  color: var(--primary-hover, #0369a1);
+}
+
 

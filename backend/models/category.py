@@ -15,6 +15,7 @@ class Category(Base):
     __tablename__ = "categories"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    kode = Column(String(50), unique=True, nullable=True, index=True)
     name = Column(String(100), unique=True, nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

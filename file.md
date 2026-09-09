@@ -31,7 +31,10 @@
 ├── .vscode/
 │   └── settings.json               # VS Code: interpreter venv + cline.hooks (workflow)
 ├── tools/
-│   └── check_docs_sync.py          # Validator sinkronisasi trio dokumen (hook)
+│   ├── check_docs_sync.py          # Validator sinkronisasi trio dokumen (hook)
+│   ├── drop_job_and_vendor_columns.py # Skrip migrasi DDL hapus kolom posisi_rekrutmen, deskripsi_it, penanggung_jawab
+│   ├── migrate_multi_social_and_codes.py # Skrip migrasi DDL multi-medsos & business code ID
+│   └── migrate_tiktok_and_clean_socials.py # Skrip migrasi DDL tiktok & pembersihan relokasi sosial media
 ├── .clinerules/
 │   └── rules.md                    # Global rules versi Cline (auto-load tiap sesi)
 ├── .githooks/
@@ -47,7 +50,7 @@
 │   ├── controllers/                # LAPIS ROUTER (MVC: Controller)
 │   │   ├── __init__.py
 │   │   ├── auth_routes.py          # POST /api/auth/login, logout, GET /me
-│   │   ├── scrape_routes.py        # /sources (meta enrichment dinamis), POST /scrape, POST /enrich, GET+DELETE /jobs, cancel, browser-login
+│   │   ├── scrape_routes.py        # /sources (meta enrichment dinamis), POST /scrape, POST /enrich, GET+DELETE /jobs, GET /jobs/{id}/incomplete, cancel, browser-login
 │   │   └── lead_routes.py          # /stats, /leads CRUD, /export, /export-csv, /duplicates, /import
 │   ├── models/                     # LAPIS MODEL (MVC: Model) — lihat database.md
 │   │   ├── __init__.py             # Re-export Base, SessionLocal, get_db, init_db + semua model
@@ -61,7 +64,9 @@
 │   ├── services/                   # LAPIS BUSINESS LOGIC (MVC: Service)
 │   │   ├── __init__.py
 │   │   ├── auth_service.py         # bcrypt hash/verify
+│   │   ├── browser_profile.py      # Kloning profil login Chrome bawaan (%LOCALAPPDATA%) ke worker Playwright
 │   │   ├── cleaner.py              # normalize_phone → 628, nama, website, email, junk domain
+│   │   ├── code_generator.py       # Generator business code ID terstruktur: LD-*, KAT-*, K-*
 │   │   ├── storage_service.py      # upsert_lead, save_raw_items, query_leads, job helpers
 │   │   ├── job_manager.py          # JobManager: thread background, progress, cancel, registry, watchdog reconcile
 │   │   ├── enrichment_service.py   # match & merge enrichment (fuzzy), find_incomplete_leads
@@ -73,6 +78,7 @@
 │   │       ├── base.py             # BaseScraper: rate_limit 1–3s, cancel, emit_progress
 │   │       ├── gmaps.py            # GmapsScraper (SEED semua segmen) + CATEGORY_KEYWORDS
 │   │       ├── dapodik.py          # DapodikScraper (enrichment Sekolah: NPSN, kepsek)
+│   │       ├── google.py           # GoogleScraper (enrichment Umum: telp/WA, email, website, sosmed via DuckDuckGo/Web)
 │   │       ├── jobstreet.py        # JobstreetScraper (enrichment: posisi rekrutmen, deskripsi IT)
 │   │       ├── glints.py           # GlintsScraper (enrichment: posisi rekrutmen, deskripsi IT)
 │   │       └── lpse.py             # LpseScraper (enrichment Vendor: penanggung jawab)
@@ -86,7 +92,11 @@
 │   ├── css/                        # (cadangan)
 │   └── js/                         # (cadangan)
 └── tests/
-    └── test_auth.py                # Smoke test auth
+    ├── test_auth.py                        # Smoke test auth
+    ├── test_browser_profile_and_progress.py # Unit test browser profile & progress preservation
+    ├── test_codes_and_socials.py           # Unit test kode ID terstruktur & multi-sosmed
+    ├── test_enrichment_core.py             # Unit test core enrichment & job management
+    └── test_google_enrichment.py           # Unit test scraper Google & enrichment kontak umum
 ```
 ---
 
@@ -125,10 +135,10 @@ DELETE /api/jobs/{id} → hapus 1 baris riwayat job (400 jika job masih berjalan
 ```
 
 **UI — Enrichment dipisah ke menu sendiri (moda monitor), aksi ada di Riwayat Job:**
-- Halaman **Enrichment** (sidebar) kembali: menampilkan "Field per Sumber" + **Riwayat Enrichment** (job non-gmaps), stop/hapus baris.
-- **Tombol ⚡ Enrich** per baris job seed (`gmaps`) yang terminal → expand baris inline (kategori+kota ikut job, pilih sumber) → `POST /api/enrich` **tanpa maks** (mengikuti jumlah data seed / semua kandidat).
+- Halaman **Enrichment** (sidebar): menampilkan "Field per Sumber" + **Riwayat Enrichment** (job non-gmaps), stop/hapus baris, serta dropdown **📋 Data Belum Lengkap** (dengan jabaran nama instansi/lokasi & tombol ✏️ Isi Manual).
+- **Tombol ⚡ Enrich** per baris job seed (`gmaps`) yang terminal → langsung mengarahkan (direct) ke form menu Enrichment dengan kategori & kota otomatis terisi.
 - **Tombol ↻ Ulangi** per baris terminal → re-run scrape/enrichment (aman: upsert; enrichment isi field kosong).
-- Kolom **Ditemukan** menampilkan `X · Y terambil` — `Y` = `items_created + items_updated` (angka real masuk DB).
+- Kolom **Ditemukan** menampilkan format informatif misal `98/100 dari 120` (terambil / target dari total listing GMaps).
 
 ### 2.3 Progress realtime & watchdog status
 - **Opsi form Enrichment dinamis**: `GET /api/enrich/options` → Kategori & Kota DISTINCT dari tabel `leads` (data seed gmaps) via `storage_service.list_categories_with_cities`. Frontend menampilkan **dropdown Kategori** + combobox Kota (searchable) yang terisi dinamis; saat Kategori dipilih, daftar Kota otomatis tersaring ke kota yang punya data kategori tsb (mencegah enrichment kombinasi kosong).
@@ -222,16 +232,20 @@ Alur konseptual PRD v1.1 (lihat [prd.md](prd.md) §6.2); implementasi aktual di 
 | `backend/models/base.py` | Engine SQLAlchemy + pooling `pool_recycle=1800`, `pool_pre_ping` (mitigasi TiDB idle disconnect), SSL `connect_args` |
 | `backend/services/job_manager.py` | **Orkestrator scraping**: `SCRAPER_REGISTRY`, `ENRICHMENT_SOURCES`, thread background, cancel, `reconcile()` watchdog (koreksi job stuck `running` → `error` saat proses/browser mati/hang). `_run` bercabang: seed → `save_raw_items`; enrichment → `match_and_merge` |
 | `backend/services/storage_service.py` | Gerbang utama tulis/baca `leads`; `LEAD_FIELDS`, `FK_FIELDS`, `SORTABLE_COLUMNS`; helper job (`create_job`, `update_job`, `delete_job`, `list_jobs`); opsi dropdown (`list_categories`, `list_cities`, `list_categories_with_cities` = DISTINCT Kategori→Kota dari data seed) |
+| `backend/services/auth_service.py` | bcrypt hash/verify |
+| `backend/services/browser_profile.py` | Kloning profil login Chrome bawaan (%LOCALAPPDATA%) ke worker Playwright tanpa bentrok process lock |
 | `backend/services/cleaner.py` | Normalisasi wajib sebelum DB: telp→`628...`, nama, website domain, validasi email, buang CDN (`ggpht.com`, dll) |
+| `backend/services/code_generator.py` | Generator format kode bisnis unik: `LD-{KATEGORI}-{001}`, `KAT-{KATEGORI}-{001}`, `K-{KOTA}-{001}` |
 | `backend/services/enrichment_service.py` | **Core logic enrichment**: `find_incomplete_leads` (target seed gmaps difilter kategori+kota & field kosong, `limit`=maks hasil), `match_and_merge` (isi hanya field kosong, tidak replace, tidak buat lead baru), `ENRICHMENT_FIELDS`, `CATEGORY_ENRICHMENT_SOURCES`, threshold fuzzy |
 | `backend/services/dedup_service.py` | Fingerprint & grouping duplikat; `resolve_group` → `merge_history` |
 | `backend/services/scrapers/base.py` | `BaseScraper`: `rate_limit()` = `random.uniform(min, max)` (SOP 1–3 detik), `cancel()`, `emit_progress()` |
 | `backend/services/scrapers/gmaps.py` | Seed semua segmen; `CATEGORY_KEYWORDS`, `INVALID_SCHOOL` regex, `browser_status`/`browser_login`, `is_alive()` (deteksi jendela Chrome ditutup) |
 | `backend/services/scrapers/dapodik.py` | **Enrichment Sekolah**: cari NPSN+kepsek per nama sekolah (target dari JobManager) di referensi.data.kemdikbud.go.id; output → `match_and_merge` |
+| `backend/services/scrapers/google.py` | **Enrichment Kontak Umum (Google/Web)**: cari no. WA/telp, email, website, sosmed (Instagram) per target via DuckDuckGo HTML parser; output → `match_and_merge` |
 | `backend/services/scrapers/{jobstreet,glints,lpse}.py` | Enrichment per-source keyword; hasil dinormalisasi → `match_and_merge` |
 | `backend/services/exporter.py` | `BASE_COLUMNS` + `EXTRA_COLUMNS` per sumber → XLSX/CSV |
 | `backend/services/importer.py` | Parser CSV label Indonesia → field; kontingensi ketika sumber diblokir |
-| `frontend/app.js` | Menghubungkan UI (`index.html`) ke seluruh API + polling job + tombol Stop; Riwayat Kategori (localStorage, unique, klik-isi); Hapus riwayat job (`DELETE /api/jobs/{id}` + konfirmasi); rumus progress `(found/max)×100` via `jobProgressPct`; **Enrichment dipisah**: tombol ⚡ Enrich inline per baris job seed (pilih sumber, tanpa maks — ikut data seed), ↻ Ulangi, halaman Enrichment memfilter job non-gmaps (`loadEnrichmentJobs`) + tabel field per sumber (`/api/sources`) |
+| `frontend/app.js` | Menghubungkan UI (`index.html`) ke seluruh API + polling job + tombol Stop; Riwayat Kategori (localStorage, unique, klik-isi); Hapus riwayat job (`DELETE /api/jobs/{id}` + konfirmasi); rumus progress `(found/max)×100` via `jobProgressPct`; format `formatJobResult` (`98/100 dari 120`); **Pemisahan riwayat job**: Scrape khusus gmaps, Enrichment khusus non-gmaps; tombol ⚡ Enrich direct ke form Enrichment; dropdown **📋 Data Belum Lengkap** di Riwayat Enrichment + edit manual via `openEditModal` |
 | `tests/test_auth.py` | Smoke test alur login |
 
 ---
@@ -278,6 +292,9 @@ scraper_gmaps_sekolah.py
 .gitignore
 .vscode/settings.json
 tools/check_docs_sync.py
+tools/drop_job_and_vendor_columns.py
+tools/migrate_multi_social_and_codes.py
+tools/migrate_tiktok_and_clean_socials.py
 .clinerules/rules.md
 .githooks/pre-commit
 backend/config.py
@@ -299,7 +316,9 @@ backend/models/scrape_job.py
 backend/models/user.py
 backend/services/__init__.py
 backend/services/auth_service.py
+backend/services/browser_profile.py
 backend/services/cleaner.py
+backend/services/code_generator.py
 backend/services/dedup_service.py
 backend/services/enrichment_service.py
 backend/services/exporter.py
@@ -311,11 +330,15 @@ backend/services/scrapers/base.py
 backend/services/scrapers/dapodik.py
 backend/services/scrapers/glints.py
 backend/services/scrapers/gmaps.py
+backend/services/scrapers/google.py
 backend/services/scrapers/jobstreet.py
 backend/services/scrapers/lpse.py
 frontend/app.js
 frontend/index.html
 frontend/style.css
 tests/test_auth.py
+tests/test_browser_profile_and_progress.py
+tests/test_codes_and_socials.py
 tests/test_enrichment_core.py
+tests/test_google_enrichment.py
 <!-- FILE-INDEX-END -->

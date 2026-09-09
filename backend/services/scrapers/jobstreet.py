@@ -3,8 +3,11 @@
 Lead = perusahaan (nama_instansi). Semua posisi lowongan per perusahaan
 digabung ke kolom `posisi_rekrutmen`; link lowongan pertama ke `link_source`.
 """
+import os
 import re
+import tempfile
 import urllib.parse
+import uuid
 
 from playwright.sync_api import sync_playwright
 
@@ -14,12 +17,22 @@ from backend.services.scrapers.base import BaseScraper
 class JobstreetScraper(BaseScraper):
     source = "jobstreet"
 
-    def __init__(self, category: str = "it", city: str = "salatiga", max_results: int = 100):
+    def __init__(self, category: str = "it", city: str = "salatiga", max_results: int = 100, job_id: str | None = None):
         super().__init__(source=self.source, category=category, city=city, max_results=max_results)
+        self.job_id = job_id
+        self._page = None
+
+    def is_alive(self) -> bool:
+        try:
+            return self._page is None or not self._page.is_closed()
+        except Exception:
+            return True
 
     def _profile_dir(self) -> str:
-        import os
-        return os.path.expanduser("~/playwright_chrome_profile_jobstreet")
+        clean_id = re.sub(r'[^a-zA-Z0-9]+', '_', self.job_id or uuid.uuid4().hex[:8])
+        worker_dir = os.path.join(tempfile.gettempdir(), "playwright_jobstreet_workers", f"worker_{clean_id}")
+        os.makedirs(worker_dir, exist_ok=True)
+        return worker_dir
 
     def _build_url(self) -> str:
         return "https://www.jobstreet.co.id/id/job-search?" + urllib.parse.urlencode(
@@ -39,6 +52,7 @@ class JobstreetScraper(BaseScraper):
                 args=["--start-maximized", "--disable-blink-features=AutomationControlled"],
             )
             page = context.new_page()
+            self._page = page
             try:
                 page.goto(self._build_url(), timeout=60000)
                 page.wait_for_selector("article", timeout=20000)
@@ -82,7 +96,6 @@ class JobstreetScraper(BaseScraper):
                         "nama_instansi": company,
                         "kategori": self.category,
                         "kota": agg["location"] or self.city,
-                        "posisi_rekrutmen": "; ".join(agg["titles"])[:255],
                         "link_source": agg["link"],
                         "status": "New",
                     }

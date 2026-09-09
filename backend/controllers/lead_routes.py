@@ -70,13 +70,16 @@ class LeadUpdate(BaseModel):
     link_gmaps: str | None = None
     website: str | None = None
     sosmed: str | None = None
+    instagram: str | None = None
+    facebook: str | None = None
+    linkedin: str | None = None
+    twitter_x: str | None = None
+    tiktok: str | None = None
     link_source: str | None = None
     status: str | None = None
     npsn: str | None = None
     nama_kepsek: str | None = None
-    posisi_rekrutmen: str | None = None
-    deskripsi_it: str | None = None
-    penanggung_jawab: str | None = None
+
 
 
 @router.patch("/leads/{lead_id}")
