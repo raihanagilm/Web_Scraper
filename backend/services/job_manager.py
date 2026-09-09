@@ -51,7 +51,15 @@ class JobManager:
         self._threads: dict[str, threading.Thread] = {}
         self._last_progress: dict[str, float] = {}
 
-    def start(self, source: str, category: str, city: str, max_results: int = 0, job_id: str | None = None) -> dict:
+    def start(
+        self,
+        source: str,
+        category: str,
+        city: str,
+        max_results: int = 0,
+        job_id: str | None = None,
+        seed_job_id: str | None = None,
+    ) -> dict:
         idx_max = max_results or None
 
         # Untuk enrichment: kumpulkan kandidat seed (lead gmaps kategori+kota
@@ -75,7 +83,9 @@ class JobManager:
 
         db = SessionLocal()
         try:
-            job = store.find_or_create_job(db, source, category, city, eff_max, job_id=job_id)
+            job = store.find_or_create_job(
+                db, source, category, city, eff_max, job_id=job_id, seed_job_id=seed_job_id,
+            )
             job_id = job.id
         finally:
             db.close()
@@ -121,7 +131,12 @@ class JobManager:
         db = SessionLocal()
         try:
             job = store.get_job(db, job_id)
-            current_found = (job.total_found or 0) if job else 0
+            if not job:
+                return
+            # Jika user sudah mengklik stop (cancelled), pertahankan status dan progres terakhir
+            if job.status == "cancelled":
+                return
+            current_found = (job.total_found or 0)
             # Pertahankan total_found tertinggi (misal listing Maps 120 jangan tertimpa oleh raw_items 50 saat simpan DB)
             preserved_found = max(current_found, total) if total > 0 else current_found
             store.update_job(db, job_id, progress=progress, total_found=preserved_found)
@@ -136,7 +151,9 @@ class JobManager:
     def _run(self, job_id: str, scraper) -> None:
         db = SessionLocal()
         try:
-            store.update_job(db, job_id, status="running")
+            job = store.get_job(db, job_id)
+            if job and job.status != "cancelled":
+                store.update_job(db, job_id, status="running")
         finally:
             db.close()
 
@@ -203,12 +220,13 @@ class JobManager:
         if raw_items:
             self._on_progress(job_id, 0, len(raw_items), f"Mencocokkan {len(raw_items)} data enrichment ke database...")
         try:
+            # Tetap lakukan pencocokan untuk raw_items yang berhasil diambil meskipun scraper dihentikan
             result = enrich.match_and_merge(
                 db,
                 source=scraper.source,
                 raw_items=raw_items,
                 progress_cb=lambda prog, total, msg: self._on_progress(job_id, prog, total, msg),
-                cancel_check=scraper.is_cancelled,
+                cancel_check=None,
                 category=scraper.category,
                 city=scraper.city,
                 limit=scraper.max_results,
@@ -221,12 +239,21 @@ class JobManager:
             f"{result['matched']} lead diisi, {result['filled']} field terisi, "
             f"{result['candidates']} kandidat, {len(result['unmatched'])} tidak match (review manual).",
         )
+        current_job = store.get_job(db, job_id)
+        current_prog = current_job.progress if current_job else 0
+        effective_prog = max(current_prog, len(raw_items), result["matched"])
         # items_created = matched (lead yang field-nya terisi) — berapa yg "terambil"
-        store.update_job(db, job_id, items_created=result["matched"], items_updated=0)
+        store.update_job(
+            db,
+            job_id,
+            items_created=result["matched"],
+            items_updated=0,
+            progress=effective_prog,
+        )
         if scraper.is_cancelled():
             store.append_job_log(
                 db, job_id,
-                f"Job dihentikan — {result['matched']} lead sudah terisi sebelum berhenti.",
+                f"Job dihentikan — {result['matched']} lead sudah terisi ({effective_prog} data diproses) sebelum berhenti.",
             )
         else:
             store.update_job(
@@ -244,7 +271,16 @@ class JobManager:
         scraper.cancel()
         db = SessionLocal()
         try:
-            store.update_job(db, job_id, status="cancelled", finished_at=datetime.utcnow())
+            job = store.get_job(db, job_id)
+            current_prog = job.progress if job else 0
+            store.update_job(
+                db,
+                job_id,
+                status="cancelled",
+                progress=current_prog,
+                finished_at=datetime.utcnow(),
+            )
+            store.append_job_log(db, job_id, "User menghentikan proses (Stop diklik).")
         finally:
             db.close()
         self._running.pop(job_id, None)

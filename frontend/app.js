@@ -402,6 +402,7 @@ async function submitEnrichModal() {
     await api("/api/enrich", {
       method: "POST",
       body: {
+        seed_job_id: currentEnrichJob.id,
         category: currentEnrichJob.category,
         city: currentEnrichJob.city,
         enrichment_source: selectedSource,
@@ -471,11 +472,11 @@ async function loadEnrichmentJobs(silent = false) {
 
 // Format tampilan Ditemukan / Terambil: misal "12/50 dari 120"
 function formatJobResult(j) {
-  const isTerminal = ["completed", "error", "cancelled"].includes(j.status);
   const taken = (j.items_created || 0) + (j.items_updated || 0);
   const progress = parseInt(j.progress, 10) || 0;
-  // Saat proses running, gunakan progress ekstraksi real-time agar tidak macet di 0
-  const currentCount = isTerminal ? taken : Math.max(progress, taken);
+  // Selalu gunakan nilai tertinggi antara data terambil (items_created) dan progres ekstraksi,
+  // sehingga bila user klik Stop (cancelled), jumlah data riil yang sudah terambil tetap tampil (misal 20/43).
+  const currentCount = Math.max(progress, taken);
 
   const target = parseInt(j.max_results, 10) || 0;
   const found = parseInt(j.total_found, 10) || 0;
@@ -559,6 +560,7 @@ async function rerunEnrichmentJob(jobId) {
       method: "POST",
       body: {
         job_id: job.id,
+        seed_job_id: job.seed_job_id,
         category: job.category,
         city: job.city,
         enrichment_source: job.source,
@@ -598,6 +600,36 @@ async function loadIncompleteLeads(jobId) {
       return;
     }
 
+    const catLower = (res.category || "").toLowerCase();
+    const isSchool = catLower.includes("sekolah") || catLower.includes("sd") || catLower.includes("smp") || catLower.includes("sma") || catLower.includes("smk") || catLower.includes("madrasah") || catLower.includes("pesantren");
+    const allCatSources = isSchool ? ["dapodik", "google"] : ["google"];
+    const altSources = allCatSources.filter((s) => s !== res.source);
+
+    const sourceLabelMap = {
+      google: "Pencarian Google / Web (Email, Website, Instagram, TikTok, LinkedIn, FB, X)",
+      dapodik: "Dapodik Kemendikdasmen (NPSN, Nama Kepala Sekolah)",
+    };
+
+    let actionBarHtml = "";
+    if (altSources.length > 0) {
+      actionBarHtml = `
+        <div class="incomplete-action-bar">
+          <div class="incomplete-action-desc">
+            <div style="font-weight:600;font-size:12.5px;color:var(--primary-dark)">⚡ Lengkapi Otomatis dengan Sumber Lain:</div>
+            <div class="muted" style="font-size:11.5px">Field seperti email atau medsos yang masih kosong dapat dicari otomatis dengan scraper sumber alternatif.</div>
+          </div>
+          <div class="incomplete-action-controls">
+            <select class="form-control select-alt-source" data-jobid="${jobId}" style="min-width:280px;font-size:12px;padding:6px 10px;">
+              ${altSources.map(s => `<option value="${s}">${esc(sourceLabelMap[s] || s)}</option>`).join("")}
+            </select>
+            <button type="button" class="btn btn-primary btn-sm btn-run-alt-enrich" data-jobid="${jobId}" style="white-space:nowrap;">
+              ⚡ Lengkapi Sekarang
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
     const rows = items
       .map((item, idx) => {
         const missingBadges = (item.missing_fields || [])
@@ -632,10 +664,45 @@ async function loadIncompleteLeads(jobId) {
     box.innerHTML = `
       <div class="incomplete-header">
         <span style="font-weight:600;font-size:13px">Data Belum Lengkap / Gagal Enrich (${items.length} lokasi di ${esc(res.city)}):</span>
-        <span class="muted" style="font-size:12px">Anda dapat mengisi field yang belum ada (${(res.fields || []).map((f) => FIELD_LABELS[f] || f).join(", ")}) secara manual di bawah ini.</span>
+        <span class="muted" style="font-size:12px">Anda dapat melengkapi data menggunakan tombol otomatis dengan sumber alternatif di bawah atau mengisi secara manual.</span>
+        ${actionBarHtml}
       </div>
       <div class="incomplete-list">${rows}</div>
     `;
+
+    box.querySelectorAll(".btn-run-alt-enrich").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const sel = box.querySelector(`.select-alt-source[data-jobid="${jobId}"]`);
+        const chosenSource = sel ? sel.value : altSources[0];
+        const ok = await confirmDialog(
+          `Buat job enrichment baru dengan sumber ${chosenSource.toUpperCase()} untuk melengkapi ${items.length} data di ${res.city}?`
+        );
+        if (!ok) return;
+        try {
+          btn.disabled = true;
+          btn.textContent = "Memulai...";
+          unlockAudio();
+          await api("/api/enrich", {
+            method: "POST",
+            body: {
+              category: res.category,
+              city: res.city,
+              enrichment_source: chosenSource,
+              max_results: items.length,
+              seed_job_id: res.seed_job_id || jobId,
+            },
+          });
+          startPolling();
+          loadEnrichmentJobs();
+          alert(`Job enrichment baru dengan sumber ${chosenSource.toUpperCase()} berhasil dibuat dan sedang berjalan!`);
+        } catch (ex) {
+          alert("Gagal memulai enrichment: " + ex.message);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "⚡ Lengkapi Sekarang";
+        }
+      });
+    });
 
     box.querySelectorAll(".btn-edit-inc").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -662,19 +729,18 @@ function jobProgressPct(j) {
   const taken = (j.items_created || 0) + (j.items_updated || 0);
   const currentCount = Math.max(progress, taken);
 
+  // Target efektif: jika listing Maps yang ditemukan lebih sedikit dari target max_results,
+  // gunakan jumlah yang ditemukan sebagai batas target.
+  const effectiveTarget = (found > 0 && found < max) ? found : (max > 0 ? max : (found || 1));
+
   // Jika error atau cancelled
   if (["error", "cancelled"].includes(j.status)) {
     if (currentCount <= 0) return 0;
-    const target = max > 0 ? max : (found || 1);
-    return Math.max(0, Math.min(100, Math.round((currentCount / target) * 100)));
+    return Math.max(0, Math.min(100, Math.round((currentCount / effectiveTarget) * 100)));
   }
 
   // Jika pending, progress 0%
   if (j.status === "pending") return 0;
-
-  // Target efektif: jika listing Maps yang ditemukan lebih sedikit dari target max_results,
-  // gunakan jumlah yang ditemukan sebagai batas target.
-  const effectiveTarget = (found > 0 && found < max) ? found : (max > 0 ? max : (found || 1));
 
   if (currentCount <= 0) {
     // Saat baru mulai running (membuka browser atau scrolling feed)

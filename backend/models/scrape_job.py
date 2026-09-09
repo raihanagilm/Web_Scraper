@@ -2,7 +2,8 @@
 
 Kolom `category` & `city` sengaja denormalisasi (snapshot nilai saat job berjalan).
 """
-from sqlalchemy import Column, DateTime, Enum, Integer, String, Text
+from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import backref, relationship
 
 from backend.models.base import Base
 
@@ -11,6 +12,7 @@ class ScrapeJob(Base):
     __tablename__ = "scrape_jobs"
 
     id = Column(String(36), primary_key=True)  # UUID string
+    seed_job_id = Column(String(36), ForeignKey("scrape_jobs.id", ondelete="CASCADE"), nullable=True, index=True)
     source = Column(String(50), nullable=False)
     category = Column(String(100), default="")
     city = Column(String(100), default="")
@@ -26,3 +28,10 @@ class ScrapeJob(Base):
     log = Column(Text, default="")
     started_at = Column(DateTime, nullable=True)
     finished_at = Column(DateTime, nullable=True)
+
+    enrichment_jobs = relationship(
+        "ScrapeJob",
+        backref=backref("seed_job", remote_side=[id]),
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )

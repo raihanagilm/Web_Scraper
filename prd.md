@@ -121,6 +121,7 @@ Prinsip umum: **Google Maps adalah sumber utama (seed) untuk semua segmen** — 
    - **Google Search** → isi telp/WA, email, website resmi, dan akun media sosial (Semua Entitas).
 4. **Matching:** fuzzy match `nama_instansi` + `kota`; alternatif NPSN (Sekolah) atau domain website/email. Hasil match di bawah threshold ditandai untuk review manual, bukan otomatis digabung.
 5. **Merge:** hanya field kosong yang diisi (`update_lead_full` field-level); data yang sudah ada tidak ditimpa. Semua perubahan tercatat dan anti-duplikat (Lapis 1 & 2) tetap berjalan.
+6. **Relasi & Penanganan Lanjutan:** Setiap job enrichment berelasi dengan seed job scrape-nya (`seed_job_id` FK cascade; hapus seed job otomatis menghapus riwayat enrichment terkait). Jika pengguna mengklik Stop (cancelled), data yang sudah terambil tetap tersimpan dan rasio progres dibekukan sesuai hasil riil. Jika field masih belum lengkap, pengguna dapat menggunakan fitur **Detail Data Belum Lengkap** untuk langsung meluncurkan scraper enrichment dengan sumber alternatif.
 
 ---
 

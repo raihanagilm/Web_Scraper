@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.deps import require_auth
-from backend.models import get_db
+from backend.models import ScrapeJob, get_db
 from backend.services import storage_service as store
 from backend.services.enrichment_service import ENRICHMENT_FIELDS, find_incomplete_leads
 from backend.services.job_manager import job_manager, ScraperRegistry
@@ -41,6 +41,7 @@ class EnrichmentRequest(BaseModel):
     enrichment_source: str = ""  # dapodik, google (kosong = auto berdasarkan kategori)
     max_results: int = 0         # 0 = semua kandidat (tanpa batas)
     job_id: Optional[str] = None
+    seed_job_id: Optional[str] = None
 
 
 @router.get("/sources")
@@ -91,7 +92,7 @@ def start_scrape(req: ScrapeRequest, _: dict = Depends(require_auth)) -> dict:
 
 
 @router.post("/enrich")
-def start_enrichment(req: EnrichmentRequest, _: dict = Depends(require_auth)) -> dict:
+def start_enrichment(req: EnrichmentRequest, _: dict = Depends(require_auth), db: Session = Depends(get_db)) -> dict:
     """Memulai job enrichment untuk melengkapi field kosong pada lead seed.
 
     Enrichment mencocokkan hasil scrape pendukung ke lead seed (GMaps) yang
@@ -118,6 +119,17 @@ def start_enrichment(req: EnrichmentRequest, _: dict = Depends(require_auth)) ->
             detail=f"Sumber enrichment '{source}' tidak tersedia. Pilih: {ScraperRegistry.list_sources()}"
         )
 
+    # Relasikan dengan seed job jika belum diberikan
+    seed_job_id = req.seed_job_id
+    if not seed_job_id:
+        seed = db.query(ScrapeJob).filter(
+            ScrapeJob.source == "gmaps",
+            ScrapeJob.category == req.category,
+            ScrapeJob.city == req.city,
+        ).order_by(ScrapeJob.started_at.desc()).first()
+        if seed:
+            seed_job_id = seed.id
+
     try:
         return job_manager.start(
             source=source,
@@ -125,6 +137,7 @@ def start_enrichment(req: EnrichmentRequest, _: dict = Depends(require_auth)) ->
             city=req.city,
             max_results=req.max_results,
             job_id=req.job_id,
+            seed_job_id=seed_job_id,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -169,6 +182,7 @@ def get_job(job_id: str, _: dict = Depends(require_auth), db: Session = Depends(
         raise HTTPException(status_code=404, detail="Job not found")
     return {
         "id": job.id,
+        "seed_job_id": getattr(job, "seed_job_id", None),
         "source": job.source,
         "category": job.category,
         "city": job.city,
@@ -225,6 +239,7 @@ def get_job_incomplete_leads(
 
     return {
         "job_id": job.id,
+        "seed_job_id": getattr(job, "seed_job_id", None),
         "source": job.source,
         "category": job.category,
         "city": job.city,

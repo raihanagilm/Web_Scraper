@@ -291,3 +291,38 @@ def test_delete_job_removes_from_db(job_db: Session):
     deleted_count = store.delete_job(job_db, jid)
     assert deleted_count == 1
     assert store.get_job(job_db, jid) is None
+
+
+def test_delete_seed_job_cascades_to_enrichment_jobs(job_db: Session):
+    """Menghapus job seed GMaps harus otomatis menghapus riwayat enrichment terkait (FK cascade)."""
+    seed_job = store.create_job(job_db, "gmaps", "sekolah", "salatiga", 50)
+    seed_id = seed_job.id
+
+    # Buat 2 child enrichment jobs
+    enrich1 = store.create_job(job_db, "dapodik", "sekolah", "salatiga", 50, seed_job_id=seed_id)
+    enrich2 = store.create_job(job_db, "google", "sekolah", "salatiga", 50, seed_job_id=seed_id)
+
+    assert store.get_job(job_db, enrich1.id) is not None
+    assert store.get_job(job_db, enrich2.id) is not None
+    assert enrich1.seed_job_id == seed_id
+    assert enrich2.seed_job_id == seed_id
+
+    # Hapus job seed
+    deleted = store.delete_job(job_db, seed_id)
+    assert deleted >= 1
+
+    # Verifikasi seed dan semua enrichment anak terhapus
+    assert store.get_job(job_db, seed_id) is None
+    assert store.get_job(job_db, enrich1.id) is None
+    assert store.get_job(job_db, enrich2.id) is None
+
+
+def test_cancelled_job_preserves_progress(job_db: Session):
+    """Job yang dibatalkan / Stop harus mempertahankan nilai progress dan items_created."""
+    job = store.create_job(job_db, "dapodik", "sekolah", "salatiga", 43)
+    store.update_job(job_db, job.id, status="cancelled", progress=20, items_created=15)
+
+    refreshed = store.get_job(job_db, job.id)
+    assert refreshed.status == "cancelled"
+    assert refreshed.progress == 20
+    assert refreshed.items_created == 15

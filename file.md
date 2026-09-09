@@ -31,6 +31,7 @@
 ├── .vscode/
 │   └── settings.json               # VS Code: interpreter venv + cline.hooks (workflow)
 ├── tools/
+│   ├── add_seed_job_fk_to_scrape_jobs.py # Skrip migrasi DDL seed_job_id FK ON DELETE CASCADE pada scrape_jobs
 │   ├── check_docs_sync.py          # Validator sinkronisasi trio dokumen (hook)
 │   ├── drop_job_and_vendor_columns.py # Skrip migrasi DDL hapus kolom posisi_rekrutmen, deskripsi_it, penanggung_jawab
 │   ├── drop_jobstreet_glints_lpse_sources.py # Skrip migrasi DDL sesuaikan source enum ke gmaps/dapodik
@@ -242,7 +243,7 @@ Alur konseptual PRD v1.1 (lihat [prd.md](prd.md) §6.2); implementasi aktual di 
 | `backend/services/scrapers/google.py` | **Enrichment Kontak Umum (Google/Web)**: cari no. WA/telp, email, website, sosmed (Instagram) per target via DuckDuckGo HTML parser; output → `match_and_merge` |
 | `backend/services/exporter.py` | `BASE_COLUMNS` + `EXTRA_COLUMNS` per sumber → XLSX/CSV |
 | `backend/services/importer.py` | Parser CSV label Indonesia → field; kontingensi ketika sumber diblokir |
-| `frontend/app.js` | Menghubungkan UI (`index.html`) ke seluruh API + polling job + tombol Stop; Riwayat Kategori (localStorage, unique, klik-isi); Hapus riwayat job (`DELETE /api/jobs/{id}` + konfirmasi); rumus progress `(found/max)×100` via `jobProgressPct`; format `formatJobResult` (`98/100 dari 120`); **Pemisahan riwayat job**: Scrape khusus gmaps, Enrichment khusus non-gmaps; tombol ⚡ Enrich direct ke form Enrichment; dropdown **📋 Data Belum Lengkap** di Riwayat Enrichment + edit manual via `openEditModal` |
+| `frontend/app.js` | Menghubungkan UI (`index.html`) ke seluruh API + polling job + tombol Stop; Riwayat Kategori (localStorage, unique, klik-isi); Hapus riwayat job (`DELETE /api/jobs/{id}` + cascade enrichment otomatis); rumus progress `(found/max)×100` via `jobProgressPct` (freeze saat Stop/cancelled); format `formatJobResult` (`Math.max(progress, taken)`); **Pemisahan riwayat job**: Scrape khusus gmaps, Enrichment khusus non-gmaps; tombol ⚡ Enrich direct ke form Enrichment; drawer/accordion **📋 Data Belum Lengkap** di Riwayat Enrichment + toolbar **⚡ Lengkapi Otomatis dengan Sumber Lain** + edit manual via `openEditModal` |
 | `tests/test_auth.py` | Smoke test alur login |
 
 ---
@@ -287,6 +288,7 @@ scraper_gmaps_sekolah.py
 .env.example
 .gitignore
 .vscode/settings.json
+tools/add_seed_job_fk_to_scrape_jobs.py
 tools/check_docs_sync.py
 tools/drop_job_and_vendor_columns.py
 tools/drop_jobstreet_glints_lpse_sources.py

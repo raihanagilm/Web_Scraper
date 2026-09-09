@@ -378,6 +378,7 @@ def create_job(
     city: str,
     max_results: int,
     job_id: str | None = None,
+    seed_job_id: str | None = None,
 ) -> ScrapeJob:
     jid = job_id or generate_job_id(category)
     # Pastikan jid unik jika ada bentrok detik yang sama
@@ -387,6 +388,7 @@ def create_job(
 
     job = ScrapeJob(
         id=jid,
+        seed_job_id=seed_job_id,
         source=source,
         category=category,
         city=city,
@@ -412,12 +414,13 @@ def find_or_create_job(
     city: str,
     max_results: int,
     job_id: str | None = None,
+    seed_job_id: str | None = None,
 ) -> ScrapeJob:
     """Jika job_id diberikan (dari aksi Ulangi / Lengkapi): update data riwayat job yang diklik.
     Jika job_id None: buat job baru (tidak pernah menimpa job sebelumnya).
     """
     if not job_id:
-        return create_job(db, source, category, city, max_results)
+        return create_job(db, source, category, city, max_results, seed_job_id=seed_job_id)
 
     job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
     if job:
@@ -428,12 +431,14 @@ def find_or_create_job(
         job.progress = 0
         job.items_created = 0
         job.items_updated = 0
+        if seed_job_id:
+            job.seed_job_id = seed_job_id
         job.log = f"Job diperbarui pada {datetime.utcnow().strftime('%d %b %Y %H:%M')}\n"
         db.commit()
         db.refresh(job)
         return job
 
-    return create_job(db, source, category, city, max_results, job_id=job_id)
+    return create_job(db, source, category, city, max_results, job_id=job_id, seed_job_id=seed_job_id)
 
 
 def update_job(db: Session, job_id: str, **fields) -> None:
@@ -455,7 +460,9 @@ def get_job(db: Session, job_id: str) -> ScrapeJob | None:
 
 
 def delete_job(db: Session, job_id: str) -> int:
-    """Hapus 1 baris riwayat job (audit log). Return jumlah baris terhapus."""
+    """Hapus 1 baris riwayat job (audit log). Jika ini seed scrape, riwayat enrichment anak otomatis terhapus."""
+    # Bersihkan relasi anak (enrichment) terlebih dahulu jika SQLite belum mengaktifkan FK cascade
+    db.query(ScrapeJob).filter(ScrapeJob.seed_job_id == job_id).delete()
     deleted = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).delete()
     db.commit()
     return deleted
@@ -466,6 +473,7 @@ def list_jobs(db: Session, limit: int = 20) -> list[dict]:
     return [
         {
             "id": j.id,
+            "seed_job_id": getattr(j, "seed_job_id", None),
             "source": j.source,
             "category": j.category,
             "city": j.city,
