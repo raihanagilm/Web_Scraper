@@ -26,7 +26,46 @@ const ICONS = {
   sortAsc: `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>`,
   sortDesc: `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>`,
   close: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
+  spinner: `<svg class="spin-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`,
 };
+
+// ---- Helper Animasi Loading & Status Tombol ----
+function setButtonLoading(btn, isLoading, loadingText = "") {
+  if (!btn) return;
+  if (isLoading) {
+    if (!btn.dataset.origHtml) {
+      btn.dataset.origHtml = btn.innerHTML;
+    }
+    btn.disabled = true;
+    btn.setAttribute("aria-busy", "true");
+    btn.classList.add("is-loading");
+    btn.innerHTML = `${ICONS.spinner} <span class="btn-text">${esc(loadingText || "Memproses...")}</span>`;
+  } else {
+    btn.disabled = false;
+    btn.removeAttribute("aria-busy");
+    btn.classList.remove("is-loading");
+    if (btn.dataset.origHtml) {
+      btn.innerHTML = btn.dataset.origHtml;
+      delete btn.dataset.origHtml;
+    }
+  }
+}
+
+function showTableLoading(tableCardEl, isLoading, text = "Memuat data...") {
+  if (!tableCardEl) return;
+  let overlay = tableCardEl.querySelector(".table-loading-overlay");
+  if (isLoading) {
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.className = "table-loading-overlay";
+      tableCardEl.appendChild(overlay);
+    }
+    overlay.innerHTML = `${ICONS.spinner} <span>${esc(text)}</span>`;
+    overlay.classList.add("active");
+  } else if (overlay) {
+    overlay.classList.remove("active");
+  }
+}
 
 // ---- Sound effects (diputar saat job selesai / gagal) ----
 const sfx = {
@@ -126,8 +165,10 @@ async function bootstrap() {
 
 $("#login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
+  const btn = $("#login-form button[type='submit']");
   const err = $("#login-error");
   err.classList.add("hidden");
+  setButtonLoading(btn, true, "Masuk...");
   try {
     const r = await api("/api/auth/login", {
       method: "POST",
@@ -144,6 +185,8 @@ $("#login-form").addEventListener("submit", async (e) => {
   } catch (ex) {
     err.textContent = ex.message;
     err.classList.remove("hidden");
+  } finally {
+    setButtonLoading(btn, false);
   }
 });
 
@@ -156,6 +199,40 @@ $("#btn-logout").addEventListener("click", async () => {
 $("#btn-mobile-menu")?.addEventListener("click", openMobileDrawer);
 $("#btn-sidebar-close")?.addEventListener("click", closeMobileDrawer);
 $("#sidebar-overlay")?.addEventListener("click", closeMobileDrawer);
+
+// Global keyboard shortcuts (Escape to close modals/drawer)
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    // 1. Confirm dialog (highest priority modal)
+    const confOverlay = $("#confirm-overlay");
+    if (confOverlay && !confOverlay.classList.contains("hidden")) {
+      e.preventDefault();
+      settleConfirm(false);
+      return;
+    }
+    // 2. Edit lead modal
+    const editModal = $("#modal-overlay");
+    if (editModal && !editModal.classList.contains("hidden")) {
+      e.preventDefault();
+      closeEditModal();
+      return;
+    }
+    // 3. Enrichment modal
+    const enrichModal = $("#modal-enrich-overlay");
+    if (enrichModal && !enrichModal.classList.contains("hidden")) {
+      e.preventDefault();
+      closeEnrichModal();
+      return;
+    }
+    // 4. Mobile drawer
+    const sb = $("#sidebar");
+    if (sb && sb.classList.contains("open")) {
+      e.preventDefault();
+      closeMobileDrawer();
+      return;
+    }
+  }
+});
 
 // ---- Router ----
 function navigate(page) {
@@ -232,18 +309,21 @@ function renderJobSortIndicators() {
 
 // ---- Scraping (GMaps) ----
 $("#btn-start-scrape").addEventListener("click", async () => {
+  const btn = $("#btn-start-scrape");
   unlockAudio();
   const msg = $("#scrape-msg");
   msg.classList.add("hidden");
+  const keyword = $("#scrape-keyword").value.trim();
+  const city = $("#scrape-city").value.trim();
+  if (!keyword) {
+    msg.textContent = "Masukkan kata kunci pencarian.";
+    msg.style.color = "var(--danger)";
+    msg.classList.remove("hidden");
+    $("#scrape-keyword").focus();
+    return;
+  }
+  setButtonLoading(btn, true, "Memulai Scrape...");
   try {
-    const keyword = $("#scrape-keyword").value.trim();
-    const city = $("#scrape-city").value.trim();
-    if (!keyword) {
-      msg.textContent = "Masukkan kata kunci pencarian.";
-      msg.style.color = "var(--danger)";
-      msg.classList.remove("hidden");
-      return;
-    }
     const job = await api("/api/scrape", {
       method: "POST",
       body: {
@@ -262,6 +342,21 @@ $("#btn-start-scrape").addEventListener("click", async () => {
     msg.textContent = ex.message;
     msg.style.color = "var(--danger)";
     msg.classList.remove("hidden");
+  } finally {
+    setButtonLoading(btn, false);
+  }
+});
+
+// Keyboard: Enter pada input form Scrape langsung memulai scrape
+["scrape-keyword", "scrape-city", "scrape-max"].forEach((id) => {
+  const el = $(`#${id}`);
+  if (el) {
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        $("#btn-start-scrape").click();
+      }
+    });
   }
 });
 
@@ -440,11 +535,8 @@ async function submitEnrichModal() {
   const errEl = $("#modal-enrich-error");
   const submitBtn = $("#modal-enrich-submit");
 
+  setButtonLoading(submitBtn, true, "Memulai Enrichment...");
   try {
-    if (submitBtn) {
-      submitBtn.disabled = true;
-      submitBtn.textContent = "Memulai...";
-    }
     unlockAudio();
     await api("/api/enrich", {
       method: "POST",
@@ -466,19 +558,24 @@ async function submitEnrichModal() {
       errEl.classList.remove("hidden");
     }
   } finally {
-    if (submitBtn) {
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = `${ICONS.zap}<span>Mulai Enrichment</span>`;
-    }
+    setButtonLoading(submitBtn, false);
   }
 }
 
 // Inisialisasi event listener interaktif modal pilihan enrichment
 document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll(".enrich-source-card").forEach((card) => {
+    card.setAttribute("tabindex", "0");
+    card.setAttribute("role", "radio");
     card.addEventListener("click", () => {
       const src = card.dataset.source;
       if (src) selectEnrichRadio(src);
+    });
+    card.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        card.click();
+      }
     });
   });
 
@@ -584,10 +681,10 @@ function renderEnrichmentJobs(jobs) {
     })
   );
   document.querySelectorAll("#page-enrichment [data-rerunenrich]").forEach((b) =>
-    b.addEventListener("click", () => rerunEnrichmentJob(b.dataset.rerunenrich))
+    b.addEventListener("click", () => rerunEnrichmentJob(b.dataset.rerunenrich, b))
   );
   document.querySelectorAll("#page-enrichment [data-deljob]").forEach((b) =>
-    b.addEventListener("click", () => deleteJob(b.dataset.deljob, loadEnrichmentJobs))
+    b.addEventListener("click", () => deleteJob(b.dataset.deljob, loadEnrichmentJobs, b))
   );
   document.querySelectorAll("#page-enrichment [data-incompletetoggle]").forEach((b) =>
     b.addEventListener("click", () => toggleIncompleteRow(b.dataset.incompletetoggle))
@@ -595,13 +692,14 @@ function renderEnrichmentJobs(jobs) {
 }
 
 // Ulangi job enrichment yang sudah selesai/error dengan update waktu started_at
-async function rerunEnrichmentJob(jobId) {
+async function rerunEnrichmentJob(jobId, triggerBtn = null) {
   const job = (lastEnrichJobs || []).find((j) => j.id === jobId);
   if (!job) return;
   const ok = await confirmDialog(
     `Ulangi enrichment ${job.source.toUpperCase()} untuk '${job.category}' @ '${job.city}'? Riwayat job akan diperbarui (waktu di-update).`
   );
   if (!ok) return;
+  if (triggerBtn) setButtonLoading(triggerBtn, true, "Mengulang...");
   try {
     await api("/api/enrich", {
       method: "POST",
@@ -618,6 +716,8 @@ async function rerunEnrichmentJob(jobId) {
     loadEnrichmentJobs();
   } catch (ex) {
     alert("Gagal menjalankan ulang enrichment: " + ex.message);
+  } finally {
+    if (triggerBtn) setButtonLoading(triggerBtn, false);
   }
 }
 
@@ -725,9 +825,8 @@ async function loadIncompleteLeads(jobId) {
           `Buat job enrichment baru dengan sumber ${chosenSource.toUpperCase()} untuk melengkapi ${items.length} data di ${res.city}?`
         );
         if (!ok) return;
+        setButtonLoading(btn, true, "Memproses...");
         try {
-          btn.disabled = true;
-          btn.textContent = "Memulai...";
           unlockAudio();
           await api("/api/enrich", {
             method: "POST",
@@ -745,8 +844,7 @@ async function loadIncompleteLeads(jobId) {
         } catch (ex) {
           alert("Gagal memulai enrichment: " + ex.message);
         } finally {
-          btn.disabled = false;
-          btn.innerHTML = `${ICONS.zap}<span>Lengkapi Sekarang</span>`;
+          setButtonLoading(btn, false);
         }
       });
     });
@@ -881,7 +979,7 @@ function renderJobs(jobs) {
     })
   );
   document.querySelectorAll("#page-scrape [data-deljob]").forEach((b) =>
-    b.addEventListener("click", () => deleteJob(b.dataset.deljob))
+    b.addEventListener("click", () => deleteJob(b.dataset.deljob, loadJobs, b))
   );
   document.querySelectorAll("#page-scrape [data-enrich]").forEach((b) =>
     b.addEventListener("click", () => {
@@ -890,7 +988,7 @@ function renderJobs(jobs) {
     })
   );
   document.querySelectorAll("#page-scrape [data-rerun]").forEach((b) =>
-    b.addEventListener("click", () => rerunJob(b.dataset.rerun))
+    b.addEventListener("click", () => rerunJob(b.dataset.rerun, b))
   );
   document.querySelectorAll("#page-scrape [data-complete]").forEach((b) =>
     b.addEventListener("click", () => completeJob(b.dataset.complete))
@@ -943,7 +1041,7 @@ async function completeJob(jobId) {
 
 // Ulangi job (scrape/enrichment) yang belum selesai atau error.
 // Memperbarui job yang sudah ada (waktu di-update) tanpa membuat baris baru.
-async function rerunJob(jobId) {
+async function rerunJob(jobId, triggerBtn = null) {
   const job = lastJobs.find((j) => j.id === jobId);
   if (!job) return;
   const ok = await confirmDialog(
@@ -952,6 +1050,7 @@ async function rerunJob(jobId) {
       : `Ulangi enrichment ${job.source} untuk '${job.category}' @ '${job.city}'? Riwayat job akan diperbarui.`
   );
   if (!ok) return;
+  if (triggerBtn) setButtonLoading(triggerBtn, true, "Mengulang...");
   try {
     if (job.source === "gmaps") {
       await api("/api/scrape", {
@@ -979,25 +1078,37 @@ async function rerunJob(jobId) {
     loadJobs();
   } catch (ex) {
     alert("Gagal menjalankan ulang: " + ex.message);
+  } finally {
+    if (triggerBtn) setButtonLoading(triggerBtn, false);
   }
 }
 
 // Hapus satu baris riwayat job (log audit). Lead yang sudah tersimpan tidak terpengaruh.
 // `reload` = fungsi refresh tabel pemanggil (loadJobs / loadEnrichmentJobs).
-async function deleteJob(jobId, reload = loadJobs) {
+async function deleteJob(jobId, reload = loadJobs, triggerBtn = null) {
   const ok = await confirmDialog("Hapus baris riwayat job ini? Lead yang sudah tersimpan tidak ikut terhapus.");
   if (!ok) return;
+  const row = triggerBtn ? triggerBtn.closest("tr") : null;
+  if (row) row.classList.add("row-deleting");
   try {
     await api(`/api/jobs/${jobId}`, { method: "DELETE" });
+    if (row) {
+      row.classList.remove("row-deleting");
+      row.classList.add("row-vanish");
+      await new Promise((r) => setTimeout(r, 220));
+    }
     await reload();
   } catch (ex) {
+    if (row) row.classList.remove("row-deleting");
     alert("Gagal menghapus riwayat: " + ex.message);
   }
 }
 
-// Klik header tabel Riwayat Job → toggle sorting asc/desc
-document.querySelectorAll("#page-scrape th[data-jsort]").forEach((th) =>
-  th.addEventListener("click", () => {
+// Klik header tabel Riwayat Job → toggle sorting asc/desc + keyboard Enter/Space
+document.querySelectorAll("#page-scrape th[data-jsort]").forEach((th) => {
+  th.setAttribute("tabindex", "0");
+  th.setAttribute("role", "button");
+  const doJobSort = () => {
     const key = th.dataset.jsort;
     if (jobSort.key === key) {
       jobSort.dir = jobSort.dir === "asc" ? "desc" : "asc";
@@ -1007,8 +1118,15 @@ document.querySelectorAll("#page-scrape th[data-jsort]").forEach((th) =>
     }
     renderJobSortIndicators();
     loadJobs();
-  })
-);
+  };
+  th.addEventListener("click", doJobSort);
+  th.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      doJobSort();
+    }
+  });
+});
 
 // ---- Browser login (Google) ----
 let browserPollTimer = null;
@@ -1046,7 +1164,9 @@ async function loadBrowserStatus() {
 }
 
 $("#btn-browser-login").addEventListener("click", async () => {
+  const btn = $("#btn-browser-login");
   const el = $("#browser-login-status");
+  setButtonLoading(btn, true, "Membuka Chrome...");
   try {
     await api("/api/browser-login", { method: "POST" });
     el.innerHTML = `${ICONS.info}<span>Chrome terbuka — login ke akun Google, lalu tutup jendelanya.</span>`;
@@ -1062,6 +1182,8 @@ $("#btn-browser-login").addEventListener("click", async () => {
   } catch (ex) {
     el.textContent = "Gagal membuka browser: " + ex.message;
     el.style.color = "var(--danger)";
+  } finally {
+    setButtonLoading(btn, false);
   }
 });
 
@@ -1266,7 +1388,7 @@ function sortByKey(arr, key, dir) {
   });
 }
 
-async function quickClearResultItem(leadId, field, specificVal) {
+async function quickClearResultItem(leadId, field, specificVal, chipEl = null) {
   const item = currentItems.find((x) => x.id === leadId);
   const instName = item ? item.nama_instansi : `Lead #${leadId}`;
   let promptMsg = `Hapus data ${field} dari "${instName}"?`;
@@ -1284,109 +1406,137 @@ async function quickClearResultItem(leadId, field, specificVal) {
   const ok = await confirmDialog(promptMsg, false);
   if (!ok) return;
 
+  if (chipEl) chipEl.classList.add("chip-loading");
   try {
     await api(`/api/leads/${leadId}`, { method: "PATCH", body: payload });
+    if (chipEl) {
+      chipEl.classList.add("chip-vanishing");
+      await new Promise((r) => setTimeout(r, 200));
+    }
     loadLeads();
   } catch (ex) {
+    if (chipEl) chipEl.classList.remove("chip-loading");
     alert("Gagal menghapus data: " + ex.message);
   }
 }
 
 async function loadLeads() {
-  const r = await api(`/api/leads?${leadParams()}`);
-  const offset = (r.page - 1) * r.size;
-  currentPageIds = r.items.map((l) => l.id);
-  currentItems = r.items;
+  const tableCard = document.querySelector("#page-results .table-card");
+  showTableLoading(tableCard, true);
+  try {
+    const r = await api(`/api/leads?${leadParams()}`);
+    const offset = (r.page - 1) * r.size;
+    currentPageIds = r.items.map((l) => l.id);
+    currentItems = r.items;
 
-  const rows = r.items
-    .map(
-      (l, i) => `
-    <tr>
-      <td class="col-check"><input type="checkbox" class="lead-check" data-id="${l.id}" ${selectedLeads.has(l.id) ? "checked" : ""} aria-label="Pilih lead ${esc(l.nama_instansi)}" /></td>
-      <td class="mono">${offset + i + 1}</td>
-      ${leadCells(l)}
-      <td>
-        <select data-status="${l.id}" aria-label="Ubah status lead ${esc(l.nama_instansi)}">
-          ${STATUS_OPTS.map((s) => `<option ${s === l.status ? "selected" : ""}>${s}</option>`).join("")}
-        </select>
-      </td>
-      <td>
-        <div class="row-actions">
-          <button type="button" class="btn-icon btn-edit" data-edit="${l.id}" aria-label="Edit lead ${esc(l.nama_instansi)}" title="Edit lead">${PENCIL_SVG}</button>
-          <button type="button" class="btn-icon" data-del="${l.id}" aria-label="Hapus lead ${esc(l.nama_instansi)}" title="Hapus lead">${TRASH_SVG}</button>
-        </div>
-      </td>
-    </tr>`
-    )
-    .join("") || `<tr><td colspan="21" class="muted" style="text-align:center;padding:24px">Tidak ada lead</td></tr>`;
-  $("#leads-body").innerHTML = rows;
-  renderSortIndicators();
+    const rows = r.items
+      .map(
+        (l, i) => `
+      <tr data-leadid="${l.id}">
+        <td class="col-check"><input type="checkbox" class="lead-check" data-id="${l.id}" ${selectedLeads.has(l.id) ? "checked" : ""} aria-label="Pilih lead ${esc(l.nama_instansi)}" /></td>
+        <td class="mono">${offset + i + 1}</td>
+        ${leadCells(l)}
+        <td>
+          <select data-status="${l.id}" aria-label="Ubah status lead ${esc(l.nama_instansi)}">
+            ${STATUS_OPTS.map((s) => `<option ${s === l.status ? "selected" : ""}>${s}</option>`).join("")}
+          </select>
+        </td>
+        <td>
+          <div class="row-actions">
+            <button type="button" class="btn-icon btn-edit" data-edit="${l.id}" aria-label="Edit lead ${esc(l.nama_instansi)}" title="Edit lead">${PENCIL_SVG}</button>
+            <button type="button" class="btn-icon" data-del="${l.id}" aria-label="Hapus lead ${esc(l.nama_instansi)}" title="Hapus lead">${TRASH_SVG}</button>
+          </div>
+        </td>
+      </tr>`
+      )
+      .join("") || `<tr><td colspan="21" class="muted" style="text-align:center;padding:24px">Tidak ada lead</td></tr>`;
+    $("#leads-body").innerHTML = rows;
+    renderSortIndicators();
 
-  // status header select-all (tercentang / indeterminate)
-  const selAll = $("#sel-all");
-  syncSelAll(selAll);
+    // status header select-all (tercentang / indeterminate)
+    const selAll = $("#sel-all");
+    syncSelAll(selAll);
 
-  const lastPage = Math.max(1, Math.ceil(r.total / r.size));
-  $("#pg-info").textContent = `Hal. ${r.page} / ${lastPage} — ${r.total} lead`;
-  $("#pg-prev").disabled = r.page <= 1;
-  $("#pg-next").disabled = r.page >= lastPage;
+    const lastPage = Math.max(1, Math.ceil(r.total / r.size));
+    $("#pg-info").textContent = `Hal. ${r.page} / ${lastPage} — ${r.total} lead`;
+    $("#pg-prev").disabled = r.page <= 1;
+    $("#pg-next").disabled = r.page >= lastPage;
 
-  document.querySelectorAll(".lead-check").forEach((cb) =>
-    cb.addEventListener("change", () => {
-      const id = parseInt(cb.dataset.id, 10);
-      if (cb.checked) selectedLeads.add(id);
-      else selectedLeads.delete(id);
-      syncSelAll(selAll);
-      updateBulkBar();
-    })
-  );
-
-  document.querySelectorAll("[data-del]").forEach((btn) =>
-    btn.addEventListener("click", async () => {
-      const ok = await confirmDialog("Hapus lead ini secara permanen?");
-      if (!ok) return;
-      try {
-        await api(`/api/leads/${btn.dataset.del}`, { method: "DELETE" });
-        selectedLeads.delete(parseInt(btn.dataset.del, 10));
+    document.querySelectorAll(".lead-check").forEach((cb) =>
+      cb.addEventListener("change", () => {
+        const id = parseInt(cb.dataset.id, 10);
+        if (cb.checked) selectedLeads.add(id);
+        else selectedLeads.delete(id);
+        syncSelAll(selAll);
         updateBulkBar();
-        loadLeads();
-      } catch (ex) { alert("Hapus gagal: " + ex.message); }
-    })
-  );
+      })
+    );
 
-  document.querySelectorAll("[data-edit]").forEach((btn) =>
-    btn.addEventListener("click", () => {
-      const item = currentItems.find((x) => x.id === parseInt(btn.dataset.edit, 10));
-      openEditModal(item);
-    })
-  );
+    document.querySelectorAll("[data-del]").forEach((btn) =>
+      btn.addEventListener("click", async () => {
+        const row = btn.closest("tr");
+        const ok = await confirmDialog("Hapus lead ini secara permanen?");
+        if (!ok) return;
+        if (row) row.classList.add("row-deleting");
+        try {
+          await api(`/api/leads/${btn.dataset.del}`, { method: "DELETE" });
+          selectedLeads.delete(parseInt(btn.dataset.del, 10));
+          updateBulkBar();
+          if (row) {
+            row.classList.add("row-vanish");
+            await new Promise((r) => setTimeout(r, 220));
+          }
+          loadLeads();
+        } catch (ex) {
+          if (row) row.classList.remove("row-deleting");
+          alert("Hapus gagal: " + ex.message);
+        }
+      })
+    );
 
-  document.querySelectorAll("[data-rclear]").forEach((btn) =>
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const id = parseInt(btn.dataset.rclear, 10);
-      const field = btn.dataset.rfield;
-      const val = btn.dataset.rval || null;
-      quickClearResultItem(id, field, val);
-    })
-  );
+    document.querySelectorAll("[data-edit]").forEach((btn) =>
+      btn.addEventListener("click", () => {
+        const item = currentItems.find((x) => x.id === parseInt(btn.dataset.edit, 10));
+        openEditModal(item);
+      })
+    );
 
-  document.querySelectorAll("[data-status]").forEach((sel) => {
-    sel.dataset.prev = sel.value;
-    sel.addEventListener("change", async () => {
-      const ok = await confirmDialog(`Ubah status lead menjadi "${sel.value}"?`, false);
-      if (!ok) { sel.value = sel.dataset.prev; return; }
-      try {
-        await api(`/api/leads/${sel.dataset.status}`, { method: "PATCH", body: { status: sel.value } });
-        sel.dataset.prev = sel.value;
-        loadLeads();
-      } catch (ex) {
-        sel.value = sel.dataset.prev;
-        alert("Gagal mengubah status: " + ex.message);
-      }
+    document.querySelectorAll("[data-rclear]").forEach((btn) =>
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const id = parseInt(btn.dataset.rclear, 10);
+        const field = btn.dataset.rfield;
+        const val = btn.dataset.rval || null;
+        const chipEl = btn.closest(".result-field-chip");
+        quickClearResultItem(id, field, val, chipEl);
+      })
+    );
+
+    document.querySelectorAll("[data-status]").forEach((sel) => {
+      sel.dataset.prev = sel.value;
+      sel.addEventListener("change", async () => {
+        const row = sel.closest("tr");
+        const ok = await confirmDialog(`Ubah status lead menjadi "${sel.value}"?`, false);
+        if (!ok) { sel.value = sel.dataset.prev; return; }
+        sel.disabled = true;
+        if (row) row.classList.add("row-updating");
+        try {
+          await api(`/api/leads/${sel.dataset.status}`, { method: "PATCH", body: { status: sel.value } });
+          sel.dataset.prev = sel.value;
+          if (row) row.classList.remove("row-updating");
+          sel.disabled = false;
+        } catch (ex) {
+          if (row) row.classList.remove("row-updating");
+          sel.disabled = false;
+          sel.value = sel.dataset.prev;
+          alert("Gagal mengubah status: " + ex.message);
+        }
+      });
     });
-  });
-  updateBulkBar();
+    updateBulkBar();
+  } finally {
+    showTableLoading(tableCard, false);
+  }
 }
 
 // ---- Results: seleksi baris & hapus ----
@@ -1427,12 +1577,31 @@ $("#btn-bulk-delete").addEventListener("click", async () => {
   if (!ids.length) return;
   const ok = await confirmDialog(`Hapus ${ids.length} lead terpilih secara permanen?`);
   if (!ok) return;
+
+  const btn = $("#btn-bulk-delete");
+  setButtonLoading(btn, true, `Menghapus (${ids.length})...`);
+  const checkedRows = [];
+  document.querySelectorAll(".lead-check:checked").forEach((cb) => {
+    const row = cb.closest("tr");
+    if (row) {
+      row.classList.add("row-deleting");
+      checkedRows.push(row);
+    }
+  });
+
   try {
     await api("/api/leads/delete-bulk", { method: "POST", body: { ids } });
     selectedLeads.clear();
     updateBulkBar();
+    checkedRows.forEach((r) => r.classList.add("row-vanish"));
+    await new Promise((r) => setTimeout(r, 220));
     loadLeads();
-  } catch (ex) { alert("Hapus gagal: " + ex.message); }
+  } catch (ex) {
+    alert("Hapus gagal: " + ex.message);
+    checkedRows.forEach((r) => r.classList.remove("row-deleting"));
+  } finally {
+    setButtonLoading(btn, false);
+  }
 });
 
 // Batal — kosongkan seleksi
@@ -1447,18 +1616,26 @@ $("#btn-clear-selection").addEventListener("click", () => {
 
 // ---- Modal konfirmasi custom (pop up konfirmasi perubahan data) ----
 let confirmResolve = null;
+let confirmLastFocus = null;
 
 function confirmDialog(message, danger = true) {
+  confirmLastFocus = document.activeElement;
   $("#confirm-msg").textContent = message;
-  $("#confirm-ok").classList.toggle("btn-danger", danger);
-  $("#confirm-ok").classList.toggle("btn-primary", !danger);
+  const okBtn = $("#confirm-ok");
+  okBtn.classList.toggle("btn-danger", danger);
+  okBtn.classList.toggle("btn-primary", !danger);
   $("#confirm-overlay").classList.remove("hidden");
+  setTimeout(() => okBtn.focus(), 40);
   return new Promise((resolve) => { confirmResolve = resolve; });
 }
 
 function settleConfirm(val) {
   $("#confirm-overlay").classList.add("hidden");
   if (confirmResolve) { confirmResolve(val); confirmResolve = null; }
+  if (confirmLastFocus && typeof confirmLastFocus.focus === "function") {
+    try { confirmLastFocus.focus(); } catch (_) {}
+    confirmLastFocus = null;
+  }
 }
 
 $("#confirm-ok").addEventListener("click", () => settleConfirm(true));
@@ -1468,8 +1645,10 @@ $("#confirm-overlay").addEventListener("click", (e) => {
 });
 
 // ---- Modal edit data ----
+let editLastFocus = null;
 function openEditModal(leadObj) {
   if (!leadObj) return;
+  editLastFocus = document.activeElement;
   const l = leadObj;
   $("#edit-id").value = l.id;
   const kodeEl = $("#edit-kode");
@@ -1481,11 +1660,15 @@ function openEditModal(leadObj) {
   $("#edit-status").value = l.status || "New";
   $("#edit-error").classList.add("hidden");
   $("#modal-overlay").classList.remove("hidden");
-  $("#edit-nama_instansi").focus();
+  setTimeout(() => $("#edit-nama_instansi")?.focus(), 40);
 }
 
 function closeEditModal() {
   $("#modal-overlay").classList.add("hidden");
+  if (editLastFocus && typeof editLastFocus.focus === "function") {
+    try { editLastFocus.focus(); } catch (_) {}
+    editLastFocus = null;
+  }
 }
 
 // Reload data halaman yang sedang aktif setelah edit tersimpan
@@ -1511,6 +1694,8 @@ $("#edit-form").addEventListener("submit", async (e) => {
   });
   const ok = await confirmDialog("Simpan perubahan data lead ini?", false);
   if (!ok) return;
+  const submitBtn = $("#edit-submit");
+  setButtonLoading(submitBtn, true, "Menyimpan...");
   try {
     await api(`/api/leads/${id}`, { method: "PATCH", body: payload });
     closeEditModal();
@@ -1523,6 +1708,8 @@ $("#edit-form").addEventListener("submit", async (e) => {
     const err = $("#edit-error");
     err.textContent = "Gagal menyimpan: " + ex.message;
     err.classList.remove("hidden");
+  } finally {
+    setButtonLoading(submitBtn, false);
   }
 });
 
@@ -1554,9 +1741,11 @@ $("#btn-reset-filter").addEventListener("click", () => {
   loadLeads();
 });
 
-// Sorting semua kolom: klik header → toggle asc/desc
-document.querySelectorAll("#page-results th.th-sort").forEach((th) =>
-  th.addEventListener("click", () => {
+// Sorting semua kolom: klik header → toggle asc/desc + keyboard Enter/Space
+document.querySelectorAll("#page-results th.th-sort").forEach((th) => {
+  th.setAttribute("tabindex", "0");
+  th.setAttribute("role", "button");
+  const doSort = () => {
     const key = th.dataset.sort;
     if (leadState.sort_by === key) {
       leadState.sort_dir = leadState.sort_dir === "asc" ? "desc" : "asc";
@@ -1567,14 +1756,23 @@ document.querySelectorAll("#page-results th.th-sort").forEach((th) =>
     leadState.page = 1;
     renderSortIndicators();
     loadLeads();
-  })
-);
+  };
+  th.addEventListener("click", doSort);
+  th.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      doSort();
+    }
+  });
+});
 
 $("#btn-filter").addEventListener("click", () => { leadState.page = 1; loadLeads(); });
 $("#pg-prev").addEventListener("click", () => { leadState.page--; loadLeads(); });
 $("#pg-next").addEventListener("click", () => { leadState.page++; loadLeads(); });
 
 $("#btn-export").addEventListener("click", async () => {
+  const btn = $("#btn-export");
+  setButtonLoading(btn, true, "Mengekspor...");
   try {
     const res = await fetch(`/api/export?${leadParams()}`, { credentials: "same-origin" });
     if (!res.ok) {
@@ -1589,9 +1787,12 @@ $("#btn-export").addEventListener("click", async () => {
     a.click();
     URL.revokeObjectURL(a.href);
   } catch (ex) { alert("Export gagal: " + ex.message); }
+  finally { setButtonLoading(btn, false); }
 });
 
 $("#btn-export-csv").addEventListener("click", async () => {
+  const btn = $("#btn-export-csv");
+  setButtonLoading(btn, true, "Mengekspor...");
   try {
     const res = await fetch(`/api/export-csv?${leadParams()}`, { credentials: "same-origin" });
     if (!res.ok) {
@@ -1606,6 +1807,7 @@ $("#btn-export-csv").addEventListener("click", async () => {
     a.click();
     URL.revokeObjectURL(a.href);
   } catch (ex) { alert("Export CSV gagal: " + ex.message); }
+  finally { setButtonLoading(btn, false); }
 });
 
 $("#btn-import").addEventListener("click", () => $("#import-file").click());
@@ -1658,21 +1860,31 @@ function bindDedupEvents() {
   );
 
   // Tombol quick clear field (hapus nilai pemicu duplikat secara instan)
-  document.querySelectorAll("[data-qclear]").forEach((btn) =>
-    btn.addEventListener("click", () => {
+  document.querySelectorAll("[data-qclear]").forEach((btn) => {
+    btn.setAttribute("tabindex", "0");
+    btn.setAttribute("role", "button");
+    const doClear = () => {
       const id = parseInt(btn.dataset.qclear, 10);
       const field = btn.dataset.qfield;
       const label = btn.dataset.qlabel || field;
-      quickClearLeadField(id, field, label);
-    })
-  );
+      const chipEl = btn.closest(".dup-field-item");
+      quickClearLeadField(id, field, label, chipEl);
+    };
+    btn.addEventListener("click", doClear);
+    btn.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        doClear();
+      }
+    });
+  });
 
   // Tombol hapus 1 lead baris ini
   document.querySelectorAll("[data-ddel]").forEach((btn) =>
     btn.addEventListener("click", () => {
       const id = parseInt(btn.dataset.ddel, 10);
       const name = btn.dataset.dname || "Lead";
-      deleteSingleLeadInGroup(id, name);
+      deleteSingleLeadInGroup(id, name, btn);
     })
   );
 
@@ -1694,8 +1906,10 @@ function bindDedupEvents() {
   document.querySelectorAll("#dedup-list .dup-group").forEach((card) => {
     const g = dedupGroups.find((x) => x.key === card.dataset.group);
     if (!g) return;
-    card.querySelectorAll("th[data-dsort]").forEach((th) =>
-      th.addEventListener("click", () => {
+    card.querySelectorAll("th[data-dsort]").forEach((th) => {
+      th.setAttribute("tabindex", "0");
+      th.setAttribute("role", "button");
+      const doSort = () => {
         const key = th.dataset.dsort;
         const cur = dedupSorts[g.key];
         if (cur && cur.key === key) {
@@ -1704,8 +1918,15 @@ function bindDedupEvents() {
           dedupSorts[g.key] = { key, dir: "asc" };
         }
         renderDedupGroupBody(card, g);
-      })
-    );
+      };
+      th.addEventListener("click", doSort);
+      th.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          doSort();
+        }
+      });
+    });
   });
 }
 
@@ -1826,14 +2047,27 @@ function renderDedupGroupBody(card, g) {
   });
 
   // Rebind tombol di card ini
-  card.querySelectorAll("[data-qclear]").forEach((btn) =>
-    btn.addEventListener("click", () => {
-      quickClearLeadField(parseInt(btn.dataset.qclear, 10), btn.dataset.qfield, btn.dataset.qlabel);
-    })
-  );
+  card.querySelectorAll("[data-qclear]").forEach((btn) => {
+    btn.setAttribute("tabindex", "0");
+    btn.setAttribute("role", "button");
+    const doClear = () => {
+      const id = parseInt(btn.dataset.qclear, 10);
+      const field = btn.dataset.qfield;
+      const label = btn.dataset.qlabel || field;
+      const chipEl = btn.closest(".dup-field-item");
+      quickClearLeadField(id, field, label, chipEl);
+    };
+    btn.addEventListener("click", doClear);
+    btn.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        doClear();
+      }
+    });
+  });
   card.querySelectorAll("[data-ddel]").forEach((btn) =>
     btn.addEventListener("click", () => {
-      deleteSingleLeadInGroup(parseInt(btn.dataset.ddel, 10), btn.dataset.dname);
+      deleteSingleLeadInGroup(parseInt(btn.dataset.ddel, 10), btn.dataset.dname, btn);
     })
   );
   card.querySelectorAll("[data-dedit]").forEach((btn) =>
@@ -1877,29 +2111,54 @@ function renderGroup(g) {
     </div>`;
 }
 
-async function quickClearLeadField(leadId, fieldName, fieldLabel) {
+async function quickClearLeadField(leadId, fieldName, fieldLabel, chipEl = null) {
   const ok = await confirmDialog(`Kosongkan ${fieldLabel} dari instansi ini agar tidak terduplikasi?`, false);
   if (!ok) return;
+
+  if (chipEl) {
+    chipEl.classList.add("chip-loading");
+    const iconSpan = chipEl.querySelector(".dup-field-icon");
+    if (iconSpan) iconSpan.innerHTML = ICONS.spinner;
+  }
 
   try {
     await api(`/api/leads/${leadId}`, {
       method: "PATCH",
       body: { [fieldName]: "" },
     });
+    if (chipEl) {
+      chipEl.classList.remove("chip-loading");
+      chipEl.classList.add("chip-vanishing");
+      await new Promise((r) => setTimeout(r, 220));
+    }
     await loadDedup();
   } catch (err) {
+    if (chipEl) {
+      chipEl.classList.remove("chip-loading");
+      const iconSpan = chipEl.querySelector(".dup-field-icon");
+      if (iconSpan) iconSpan.innerHTML = CLOSE_SVG;
+    }
     alert("Gagal mengosongkan data: " + err.message);
   }
 }
 
-async function deleteSingleLeadInGroup(leadId, leadName) {
+async function deleteSingleLeadInGroup(leadId, leadName, triggerBtn = null) {
   const ok = await confirmDialog(`Hapus instansi "${leadName}" (#${leadId}) dari database?`);
   if (!ok) return;
 
+  const row = triggerBtn ? triggerBtn.closest("tr") : null;
+  if (row) row.classList.add("row-deleting");
+
   try {
     await api(`/api/leads/${leadId}`, { method: "DELETE" });
+    if (row) {
+      row.classList.remove("row-deleting");
+      row.classList.add("row-vanish");
+      await new Promise((r) => setTimeout(r, 220));
+    }
     await loadDedup();
   } catch (err) {
+    if (row) row.classList.remove("row-deleting");
     alert("Gagal menghapus lead: " + err.message);
   }
 }
@@ -1923,6 +2182,7 @@ async function resolveGroup(btn) {
     });
   }
 
+  setButtonLoading(btn, true, "Memproses...");
   try {
     await api("/api/duplicates/resolve", {
       method: "POST",
@@ -1931,10 +2191,20 @@ async function resolveGroup(btn) {
     await loadDedup();
   } catch (ex) {
     alert("Gagal: " + ex.message);
+  } finally {
+    setButtonLoading(btn, false);
   }
 }
 
-$("#btn-dedup-reload").addEventListener("click", loadDedup);
+$("#btn-dedup-reload").addEventListener("click", async () => {
+  const btn = $("#btn-dedup-reload");
+  setButtonLoading(btn, true, "Memuat...");
+  try {
+    await loadDedup();
+  } finally {
+    setButtonLoading(btn, false);
+  }
+});
 
 // ---- Init ----
 bootstrap();
