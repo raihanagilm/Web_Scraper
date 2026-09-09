@@ -1554,5 +1554,215 @@ th.col-check, td.col-check { text-align: center; }
   }
 }
 
+/* ===== SCREEN LOADING OVERLAY (DEDUP & DATA SYNC) ===== */
+.dedup-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(15, 23, 42, 0.52);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.22s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.22s;
+  pointer-events: none;
+}
 
+.dedup-loading-overlay:not(.hidden).active {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
 
+.dedup-loading-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 30px 36px;
+  max-width: 420px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: scale(0.92);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dedup-loading-overlay:not(.hidden).active .dedup-loading-card {
+  transform: scale(1);
+}
+
+.dedup-loading-icon-wrap {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: #ecfdf5;
+  border: 2px solid #a7f3d0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  color: #059669;
+}
+
+.dedup-spinner {
+  width: 32px;
+  height: 32px;
+}
+
+.dedup-loading-card h4 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.dedup-loading-card p {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* ===== TOAST NOTIFICATIONS ===== */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 2500;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+  max-width: 400px;
+  width: calc(100% - 32px);
+}
+
+.toast-item {
+  pointer-events: auto;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid var(--primary);
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.06);
+  padding: 13px 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  transform: translateX(120%);
+  opacity: 0;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+}
+
+.toast-item.toast-show {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.toast-item.toast-hide {
+  transform: translateX(120%);
+  opacity: 0;
+}
+
+.toast-item.toast-warning {
+  border-left-color: #d97706;
+  background: #fffdfa;
+}
+
+.toast-item.toast-warning .toast-icon {
+  color: #d97706;
+  background: #fef3c7;
+}
+
+.toast-item.toast-success {
+  border-left-color: #059669;
+}
+
+.toast-item.toast-success .toast-icon {
+  color: #059669;
+  background: #ecfdf5;
+}
+
+.toast-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.toast-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.toast-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.toast-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: #ef4444;
+  color: #fff;
+}
+
+.toast-desc {
+  font-size: 12.5px;
+  color: #475569;
+  line-height: 1.45;
+}
+
+.toast-action-hint {
+  margin-top: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #059669;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toast-close {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin: -4px -6px 0 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+.toast-close:hover {
+  background: #f1f5f9;
+  color: var(--text);
+}
+
+.toast-clickable {
+  cursor: pointer;
+}
+
+.toast-clickable:hover {
+  box-shadow: 0 14px 28px -5px rgba(0, 0, 0, 0.16), 0 10px 12px -6px rgba(0, 0, 0, 0.08);
+}

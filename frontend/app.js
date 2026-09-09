@@ -67,6 +67,97 @@ function showTableLoading(tableCardEl, isLoading, text = "Memuat data...") {
   }
 }
 
+// Loading state layar penuh khusus untuk pembersihan duplikasi / sinkronisasi data
+function showDedupScreenLoading(isLoading, title = "Memperbarui Data Duplikat", desc = "Mohon tunggu sebentar, data sedang diselaraskan...") {
+  const overlay = $("#dedup-loading-overlay");
+  if (!overlay) return;
+  if (isLoading) {
+    const titleEl = $("#dedup-loading-title");
+    const descEl = $("#dedup-loading-desc");
+    if (titleEl) titleEl.textContent = title;
+    if (descEl) descEl.textContent = desc;
+    overlay.classList.remove("hidden");
+    requestAnimationFrame(() => overlay.classList.add("active"));
+  } else {
+    overlay.classList.remove("active");
+    setTimeout(() => {
+      if (!overlay.classList.contains("active")) {
+        overlay.classList.add("hidden");
+      }
+    }, 240);
+  }
+}
+
+// Toast notification sistemik untuk notifikasi duplikasi & alert global
+function showToast({ title, message, type = "info", countBadge = null, duration = 7500, onClick = null }) {
+  const container = $("#toast-container");
+  if (!container) return;
+
+  const item = document.createElement("div");
+  item.className = `toast-item toast-${type} ${onClick ? "toast-clickable" : ""}`;
+  item.setAttribute("role", "alert");
+  item.setAttribute("tabindex", onClick ? "0" : "-1");
+
+  let iconSvg = ICONS.info;
+  if (type === "warning") iconSvg = ICONS.alertTriangle;
+  else if (type === "success") iconSvg = ICONS.checkCircle;
+
+  const badgeHtml = countBadge ? `<span class="toast-badge">${esc(countBadge)}</span>` : "";
+  const actionHint = onClick
+    ? `<div class="toast-action-hint">
+        <span>Buka Review Duplikat</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+       </div>`
+    : "";
+
+  item.innerHTML = `
+    <div class="toast-icon" aria-hidden="true">${iconSvg}</div>
+    <div class="toast-content">
+      <div class="toast-title">
+        <span>${esc(title)}</span>
+        ${badgeHtml}
+      </div>
+      <div class="toast-desc">${esc(message)}</div>
+      ${actionHint}
+    </div>
+    <button type="button" class="toast-close" aria-label="Tutup notifikasi" title="Tutup">${ICONS.close}</button>
+  `;
+
+  const closeToast = () => {
+    item.classList.remove("toast-show");
+    item.classList.add("toast-hide");
+    setTimeout(() => {
+      if (item.parentNode) item.parentNode.removeChild(item);
+    }, 320);
+  };
+
+  item.querySelector(".toast-close").addEventListener("click", (e) => {
+    e.stopPropagation();
+    closeToast();
+  });
+
+  if (onClick) {
+    const doAction = () => {
+      onClick();
+      closeToast();
+    };
+    item.addEventListener("click", doAction);
+    item.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        doAction();
+      }
+    });
+  }
+
+  container.appendChild(item);
+  requestAnimationFrame(() => item.classList.add("toast-show"));
+
+  if (duration > 0) {
+    setTimeout(closeToast, duration);
+  }
+}
+
 // ---- Sound effects (diputar saat job selesai / gagal) ----
 const sfx = {
   done: new Audio("/audio/anjir-wibu.mp3"),
@@ -158,6 +249,7 @@ async function bootstrap() {
     if ($("#mobile-user-name")) $("#mobile-user-name").textContent = uname;
     showApp();
     navigate(location.hash.replace("#", "") || "dashboard");
+    refreshDedupBadge({ notify: false });
   } catch (_) {
     showLogin();
   }
@@ -182,6 +274,7 @@ $("#login-form").addEventListener("submit", async (e) => {
     if ($("#mobile-user-name")) $("#mobile-user-name").textContent = uname;
     showApp();
     navigate("dashboard");
+    refreshDedupBadge({ notify: false });
   } catch (ex) {
     err.textContent = ex.message;
     err.classList.remove("hidden");
@@ -279,15 +372,62 @@ async function loadDashboard() {
   $("#stats-city").innerHTML = list(s.by_city) || `<li class="muted">Belum ada data</li>`;
 }
 
-// ---- Polling job progress ----
+// ---- Polling job progress & Deteksi Otomatis Duplikasi ----
 let pollTimer = null;
+
+async function pollBackgroundJobs() {
+  try {
+    const r = await api("/api/jobs?limit=50");
+    const allJobs = r.items || [];
+    const gmapsJobs = allJobs.filter((j) => j.source === "gmaps");
+    const enrichJobs = allJobs.filter((j) => j.source !== "gmaps");
+
+    let completedScrape = false;
+    let completedEnrich = false;
+    let enrichSourceLabel = "";
+
+    allJobs.forEach((j) => {
+      const prev = jobPrevStatus.get(j.id);
+      jobPrevStatus.set(j.id, j.status);
+      if (prev && prev !== j.status && (prev === "running" || prev === "pending")) {
+        if (j.status === "completed") {
+          playSound("done");
+          if (j.source === "gmaps") {
+            completedScrape = true;
+          } else {
+            completedEnrich = true;
+            enrichSourceLabel = j.source === "dapodik" ? "Dapodik" : "Pencarian Google";
+          }
+        } else if (j.status === "error" || j.status === "cancelled") {
+          playSound("fail");
+        }
+      }
+    });
+
+    if (completedScrape) {
+      await refreshDedupBadge({ notify: true, triggerSource: "Scrape Data (Google Maps)" });
+    } else if (completedEnrich) {
+      await refreshDedupBadge({ notify: true, triggerSource: `Enrichment Leads (${enrichSourceLabel})` });
+    }
+
+    if (!$("#page-scrape").classList.contains("hidden")) {
+      renderJobs(allJobs);
+    }
+    if (!$("#page-enrichment").classList.contains("hidden")) {
+      lastEnrichJobs = enrichJobs;
+      renderEnrichmentJobs(enrichJobs);
+    }
+
+    const hasActive = allJobs.some((j) => j.status === "running" || j.status === "pending");
+    if (!hasActive) stopPolling();
+  } catch (ex) {
+    console.warn("pollBackgroundJobs:", ex.message);
+  }
+}
 
 function startPolling() {
   if (pollTimer) return;
-  pollTimer = setInterval(() => {
-    if (!$("#page-scrape").classList.contains("hidden")) loadJobs(true);
-    if (!$("#page-enrichment").classList.contains("hidden")) loadEnrichmentJobs(true);
-  }, 2000);
+  pollTimer = setInterval(pollBackgroundJobs, 2000);
 }
 
 function stopPolling() {
@@ -601,7 +741,11 @@ async function loadEnrichmentJobs(silent = false) {
         const prev = jobPrevStatus.get(j.id);
         jobPrevStatus.set(j.id, j.status);
         if (prev && prev !== j.status && (prev === "running" || prev === "pending")) {
-          if (j.status === "completed") playSound("done");
+          if (j.status === "completed") {
+            playSound("done");
+            const srcName = j.source === "dapodik" ? "Dapodik" : "Pencarian Google";
+            refreshDedupBadge({ notify: true, triggerSource: `Enrichment Leads (${srcName})` });
+          }
           else if (j.status === "error" || j.status === "cancelled") playSound("fail");
         }
       });
@@ -906,7 +1050,10 @@ async function loadJobs(silent = false) {
         const prev = jobPrevStatus.get(j.id);
         jobPrevStatus.set(j.id, j.status);
         if (prev && prev !== j.status && (prev === "running" || prev === "pending")) {
-          if (j.status === "completed") playSound("done");
+          if (j.status === "completed") {
+            playSound("done");
+            refreshDedupBadge({ notify: true, triggerSource: "Scrape Data (Google Maps)" });
+          }
           else if (j.status === "error" || j.status === "cancelled") playSound("fail");
         }
       });
@@ -1835,9 +1982,44 @@ function reloadActivePage() {
   else if (hash === "enrichment") loadEnrichmentJobs();
 }
 
-// ---- Review Duplikat page ----
+// ---- Review Duplikat & Deteksi Duplikasi Realtime ----
 let dedupGroups = [];
 const dedupSorts = {}; // groupKey -> { key, dir }
+
+// Sinkronisasi badge & deteksi duplikat instan (setelah scrape/enrichment maupun saat aplikasi dibuka)
+async function refreshDedupBadge({ notify = false, triggerSource = "" } = {}) {
+  try {
+    const r = await api("/api/duplicates");
+    const groups = r.groups || [];
+    dedupGroups = groups;
+    const badge = $("#dedup-badge");
+    if (badge) {
+      badge.classList.toggle("hidden", groups.length === 0);
+      badge.textContent = groups.length || "";
+    }
+    // Jika tab Review Duplikat sedang dibuka user, perbarui isi list secara realtime
+    if (!$("#page-dedup").classList.contains("hidden")) {
+      $("#dedup-empty").classList.toggle("hidden", groups.length > 0);
+      $("#dedup-list").innerHTML = groups.map(renderGroup).join("");
+      bindDedupEvents();
+    }
+    // Tampilkan notifikasi toast jika diminta dan ditemukan duplikasi
+    if (notify && groups.length > 0) {
+      showToast({
+        title: "Duplikasi Terdeteksi!",
+        message: `Terdeteksi ${groups.length} grup data terindikasi duplikat setelah ${triggerSource || "proses data"}.`,
+        type: "warning",
+        countBadge: `${groups.length} Grup`,
+        duration: 8500,
+        onClick: () => navigate("dedup"),
+      });
+    }
+    return groups.length;
+  } catch (err) {
+    console.warn("refreshDedupBadge:", err.message);
+    return 0;
+  }
+}
 
 async function loadDedup() {
   const r = await api("/api/duplicates");
@@ -2179,6 +2361,12 @@ async function keepSingleLeadFieldInGroup(leadId, groupKey, fieldName, fieldLabe
     chipEl.classList.add("chip-loading");
   }
 
+  showDedupScreenLoading(
+    true,
+    "Mempertahankan Data Benar",
+    `Mengosongkan ${fieldLabel} pada ${otherCount} instansi lainnya di grup ini dan menyelaraskan database...`
+  );
+
   try {
     // Kosongkan nilai field terkait di semua instansi lain dalam grup
     await Promise.all(
@@ -2196,6 +2384,7 @@ async function keepSingleLeadFieldInGroup(leadId, groupKey, fieldName, fieldLabe
     if (chipEl) {
       chipEl.classList.remove("chip-loading");
     }
+    showDedupScreenLoading(false);
   }
 }
 
@@ -2208,6 +2397,12 @@ async function quickClearLeadField(leadId, fieldName, fieldLabel, chipEl = null)
     const iconSpan = chipEl.querySelector(".dup-field-icon");
     if (iconSpan) iconSpan.innerHTML = ICONS.spinner;
   }
+
+  showDedupScreenLoading(
+    true,
+    "Mengosongkan Data Duplikat",
+    `Menghapus ${fieldLabel} dari instansi ini dan menyelaraskan grup duplikat...`
+  );
 
   try {
     await api(`/api/leads/${leadId}`, {
@@ -2227,6 +2422,8 @@ async function quickClearLeadField(leadId, fieldName, fieldLabel, chipEl = null)
       if (iconSpan) iconSpan.innerHTML = CLOSE_SVG;
     }
     alert("Gagal mengosongkan data: " + err.message);
+  } finally {
+    showDedupScreenLoading(false);
   }
 }
 
@@ -2236,6 +2433,12 @@ async function deleteSingleLeadInGroup(leadId, leadName, triggerBtn = null) {
 
   const row = triggerBtn ? triggerBtn.closest("tr") : null;
   if (row) row.classList.add("row-deleting");
+
+  showDedupScreenLoading(
+    true,
+    "Menghapus Lead",
+    `Menghapus "${leadName}" dari database dan menyelaraskan grup duplikat...`
+  );
 
   try {
     await api(`/api/leads/${leadId}`, { method: "DELETE" });
@@ -2248,6 +2451,8 @@ async function deleteSingleLeadInGroup(leadId, leadName, triggerBtn = null) {
   } catch (err) {
     if (row) row.classList.remove("row-deleting");
     alert("Gagal menghapus lead: " + err.message);
+  } finally {
+    showDedupScreenLoading(false);
   }
 }
 
@@ -2271,6 +2476,12 @@ async function resolveGroup(btn) {
   }
 
   setButtonLoading(btn, true, "Memproses...");
+  showDedupScreenLoading(
+    true,
+    "Menyatukan Grup Duplikat",
+    "Menyimpan preferensi data dan menyelaraskan entitas di database..."
+  );
+
   try {
     await api("/api/duplicates/resolve", {
       method: "POST",
@@ -2281,16 +2492,23 @@ async function resolveGroup(btn) {
     alert("Gagal: " + ex.message);
   } finally {
     setButtonLoading(btn, false);
+    showDedupScreenLoading(false);
   }
 }
 
 $("#btn-dedup-reload").addEventListener("click", async () => {
   const btn = $("#btn-dedup-reload");
   setButtonLoading(btn, true, "Memuat...");
+  showDedupScreenLoading(
+    true,
+    "Memuat Review Duplikat",
+    "Menganalisis database untuk mendeteksi entitas ganda..."
+  );
   try {
     await loadDedup();
   } finally {
     setButtonLoading(btn, false);
+    showDedupScreenLoading(false);
   }
 });
 

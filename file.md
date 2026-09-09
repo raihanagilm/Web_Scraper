@@ -23,6 +23,7 @@
 ├── prd.md                          # PRD v1.1 — APA & MENGAPA
 ├── file.md                         # Dokumen ini — struktur folder & jalan kode
 ├── database.md                     # Skema database & alur data (komplemen file.md)
+├── pyproject.toml                  # Konfigurasi entrypoint deployment (Vercel)
 ├── requirements.txt                # Dependencies Python
 ├── run.py                          # Entry point dev server: python run.py
 ├── scraper_gmaps_sekolah.py        # Skrip legacy prototype GMaps (bukan dipakai app)
@@ -282,6 +283,7 @@ README.md
 prd.md
 file.md
 database.md
+pyproject.toml
 requirements.txt
 run.py
 scraper_gmaps_sekolah.py
