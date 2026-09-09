@@ -9,6 +9,25 @@ const esc = (s) =>
 
 const STATUS_OPTS = ["New", "Contacted", "Follow Up", "Deal", "Rejected"];
 
+// ---- Central SVG Icons (Lucide / Feather style — clean, stroke-based, no keyboard emojis) ----
+const ICONS = {
+  zap: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+  refresh: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>`,
+  clipboard: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>`,
+  plus: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+  edit: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
+  trash: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="m19 6-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>`,
+  stop: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>`,
+  check: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>`,
+  checkCircle: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
+  alertTriangle: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+  info: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`,
+  mapPin: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`,
+  sortAsc: `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>`,
+  sortDesc: `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>`,
+  close: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
+};
+
 // ---- Sound effects (diputar saat job selesai / gagal) ----
 const sfx = {
   done: new Audio("/audio/anjir-wibu.mp3"),
@@ -62,10 +81,28 @@ async function api(path, opts = {}) {
   return res.headers.get("content-type")?.includes("json") ? res.json() : res;
 }
 
+// ---- Mobile Drawer Navigation ----
+function openMobileDrawer() {
+  const sb = $("#sidebar");
+  const ov = $("#sidebar-overlay");
+  if (sb) sb.classList.add("open");
+  if (ov) ov.classList.add("open");
+  document.body.classList.add("drawer-open");
+}
+
+function closeMobileDrawer() {
+  const sb = $("#sidebar");
+  const ov = $("#sidebar-overlay");
+  if (sb) sb.classList.remove("open");
+  if (ov) ov.classList.remove("open");
+  document.body.classList.remove("drawer-open");
+}
+
 // ---- Auth & view switching ----
 function showLogin() {
   $("#login-view").classList.remove("hidden");
   $("#app-view").classList.add("hidden");
+  closeMobileDrawer();
   stopPolling();
 }
 
@@ -77,7 +114,9 @@ function showApp() {
 async function bootstrap() {
   try {
     const me = await api("/api/auth/me");
-    $("#user-name").textContent = me.username || "user";
+    const uname = me.username || "user";
+    if ($("#user-name")) $("#user-name").textContent = uname;
+    if ($("#mobile-user-name")) $("#mobile-user-name").textContent = uname;
     showApp();
     navigate(location.hash.replace("#", "") || "dashboard");
   } catch (_) {
@@ -97,7 +136,9 @@ $("#login-form").addEventListener("submit", async (e) => {
         password: $("#login-password").value,
       },
     });
-    $("#user-name").textContent = r.user?.username || "user";
+    const uname = r.user?.username || "user";
+    if ($("#user-name")) $("#user-name").textContent = uname;
+    if ($("#mobile-user-name")) $("#mobile-user-name").textContent = uname;
     showApp();
     navigate("dashboard");
   } catch (ex) {
@@ -111,8 +152,14 @@ $("#btn-logout").addEventListener("click", async () => {
   showLogin();
 });
 
+// Mobile drawer controls
+$("#btn-mobile-menu")?.addEventListener("click", openMobileDrawer);
+$("#btn-sidebar-close")?.addEventListener("click", closeMobileDrawer);
+$("#sidebar-overlay")?.addEventListener("click", closeMobileDrawer);
+
 // ---- Router ----
 function navigate(page) {
+  closeMobileDrawer();
   document.querySelectorAll(".page").forEach((p) => p.classList.add("hidden"));
   const el = $(`#page-${page}`) || $("#page-dashboard");
   el.classList.remove("hidden");
@@ -179,7 +226,7 @@ function renderJobSortIndicators() {
     const active = th.dataset.jsort === jobSort.key;
     th.classList.toggle("sorted", active);
     const arrow = th.querySelector(".sort-arrow");
-    if (arrow) arrow.textContent = active ? (jobSort.dir === "asc" ? "▲" : "▼") : "";
+    if (arrow) arrow.innerHTML = active ? (jobSort.dir === "asc" ? ICONS.sortAsc : ICONS.sortDesc) : "";
   });
 }
 
@@ -421,7 +468,7 @@ async function submitEnrichModal() {
   } finally {
     if (submitBtn) {
       submitBtn.disabled = false;
-      submitBtn.textContent = "⚡ Mulai Enrichment";
+      submitBtn.innerHTML = `${ICONS.zap}<span>Mulai Enrichment</span>`;
     }
   }
 }
@@ -512,10 +559,10 @@ function renderEnrichmentJobs(jobs) {
       <td class="mono">${formatJobResult(j)}</td>
       <td class="row-actions">
         ${j.status === "running" || j.status === "pending"
-          ? `<button class="btn btn-ghost btn-sm" data-cancel="${j.id}">Stop</button>`
-          : `<button class="btn btn-ghost btn-sm" data-rerunenrich="${j.id}" title="Ulangi enrichment ini (update waktu & data)">↻ Ulangi</button>`}
-        <button class="btn btn-ghost btn-sm" data-incompletetoggle="${j.id}" title="Lihat daftar instansi yang belum lengkap atau gagal di-enrich">📋 Data Belum Lengkap</button>
-        <button class="btn btn-ghost-danger btn-sm" data-deljob="${j.id}" title="Hapus riwayat job">Hapus</button>
+          ? `<button class="btn btn-ghost btn-sm" data-cancel="${j.id}" style="display:inline-flex;align-items:center;gap:4px;">${ICONS.stop}<span>Stop</span></button>`
+          : `<button class="btn btn-ghost btn-sm" data-rerunenrich="${j.id}" title="Ulangi enrichment ini (update waktu & data)" style="display:inline-flex;align-items:center;gap:4px;">${ICONS.refresh}<span>Ulangi</span></button>`}
+        <button class="btn btn-ghost btn-sm" data-incompletetoggle="${j.id}" title="Lihat daftar instansi yang belum lengkap atau gagal di-enrich" style="display:inline-flex;align-items:center;gap:4px;">${ICONS.clipboard}<span>Data Belum Lengkap</span></button>
+        <button class="btn btn-ghost-danger btn-sm" data-deljob="${j.id}" title="Hapus riwayat job" style="display:inline-flex;align-items:center;gap:4px;">${ICONS.trash}<span>Hapus</span></button>
       </td>
     </tr>
     <tr class="incomplete-row hidden" data-incompleterow="${j.id}">
@@ -615,15 +662,15 @@ async function loadIncompleteLeads(jobId) {
       actionBarHtml = `
         <div class="incomplete-action-bar">
           <div class="incomplete-action-desc">
-            <div style="font-weight:600;font-size:12.5px;color:var(--primary-dark)">⚡ Lengkapi Otomatis dengan Sumber Lain:</div>
+            <div style="font-weight:600;font-size:12.5px;color:var(--primary-dark);display:flex;align-items:center;gap:6px;">${ICONS.zap}<span>Lengkapi Otomatis dengan Sumber Lain:</span></div>
             <div class="muted" style="font-size:11.5px">Field seperti email atau medsos yang masih kosong dapat dicari otomatis dengan scraper sumber alternatif.</div>
           </div>
           <div class="incomplete-action-controls">
             <select class="form-control select-alt-source" data-jobid="${jobId}" style="min-width:280px;font-size:12px;padding:6px 10px;">
               ${altSources.map(s => `<option value="${s}">${esc(sourceLabelMap[s] || s)}</option>`).join("")}
             </select>
-            <button type="button" class="btn btn-primary btn-sm btn-run-alt-enrich" data-jobid="${jobId}" style="white-space:nowrap;">
-              ⚡ Lengkapi Sekarang
+            <button type="button" class="btn btn-primary btn-sm btn-run-alt-enrich" data-jobid="${jobId}" style="white-space:nowrap;display:inline-flex;align-items:center;gap:6px;">
+              ${ICONS.zap}<span>Lengkapi Sekarang</span>
             </button>
           </div>
         </div>
@@ -644,8 +691,8 @@ async function loadIncompleteLeads(jobId) {
               <b>${idx + 1}. ${esc(item.nama_instansi || "Tanpa Nama")}</b>
               <span class="tag tag-src" style="font-size:10px">${esc(item.source || "seed")}</span>
             </div>
-            <div class="incomplete-loc">
-              📍 <b>Lokasi:</b> ${esc(loc)}
+            <div class="incomplete-loc" style="display:flex;align-items:center;gap:4px;">
+              ${ICONS.mapPin} <b>Lokasi:</b> <span>${esc(loc)}</span>
             </div>
             <div class="incomplete-fields">
               <span class="muted" style="font-size:11.5px;margin-right:6px">Status Data:</span>
@@ -653,8 +700,8 @@ async function loadIncompleteLeads(jobId) {
             </div>
           </div>
           <div class="incomplete-actions">
-            <button type="button" class="btn btn-primary btn-sm btn-edit-inc" data-editinc="${item.id}" title="Isi data enrichment secara manual">
-              ✏️ Isi Manual
+            <button type="button" class="btn btn-primary btn-sm btn-edit-inc" data-editinc="${item.id}" title="Isi data enrichment secara manual" style="display:inline-flex;align-items:center;gap:6px;">
+              ${ICONS.edit}<span>Isi Manual</span>
             </button>
           </div>
         </div>`;
@@ -699,7 +746,7 @@ async function loadIncompleteLeads(jobId) {
           alert("Gagal memulai enrichment: " + ex.message);
         } finally {
           btn.disabled = false;
-          btn.textContent = "⚡ Lengkapi Sekarang";
+          btn.innerHTML = `${ICONS.zap}<span>Lengkapi Sekarang</span>`;
         }
       });
     });
@@ -793,22 +840,18 @@ function renderJobs(jobs) {
 
       let actionBtn = "";
       if (j.status === "running" || j.status === "pending") {
-        actionBtn = `<button class="btn btn-ghost btn-sm" data-cancel="${j.id}">Stop</button>`;
+        actionBtn = `<button class="btn btn-ghost btn-sm" data-cancel="${j.id}" style="display:inline-flex;align-items:center;gap:4px;">${ICONS.stop}<span>Stop</span></button>`;
       } else if (isCompleted && quotaReached && hasMoreFound) {
-        // Kuota sudah selesai (misal 5/5), tapi di Maps masih ada sisa listing (total_found > progress misal 120 > 5)
-        // Tombolnya adalah "➕ Lengkapi" (bukan Ulangi)
-        actionBtn = `<button class="btn btn-ghost btn-sm" data-complete="${j.id}" title="Lengkapi data (ditemukan ${j.total_found}, baru terambil ${j.progress})">➕ Lengkapi</button>`;
+        actionBtn = `<button class="btn btn-ghost btn-sm" data-complete="${j.id}" title="Lengkapi data (ditemukan ${j.total_found}, baru terambil ${j.progress})" style="display:inline-flex;align-items:center;gap:4px;">${ICONS.plus}<span>Lengkapi</span></button>`;
       } else if (!isCompleted || (!quotaReached && hasMoreFound)) {
-        // Belum selesai (error, cancelled, atau kuota belum terpenuhi)
-        // Tombolnya adalah "↻ Ulangi"
-        actionBtn = `<button class="btn btn-ghost btn-sm" data-rerun="${j.id}" title="Ulangi job yang belum selesai ini">↻ Ulangi</button>`;
+        actionBtn = `<button class="btn btn-ghost btn-sm" data-rerun="${j.id}" title="Ulangi job yang belum selesai ini" style="display:inline-flex;align-items:center;gap:4px;">${ICONS.refresh}<span>Ulangi</span></button>`;
       }
 
       const actions = [
         actionBtn,
         isSeed && isTerminalState
-          ? `<button class="btn btn-ghost btn-sm" data-enrich="${j.id}" title="Pindah ke menu Enrichment utk kategori & kota job ini">⚡ Enrich</button>` : "",
-        `<button class="btn btn-ghost-danger btn-sm" data-deljob="${j.id}" title="Hapus riwayat job">Hapus</button>`,
+          ? `<button class="btn btn-ghost btn-sm" data-enrich="${j.id}" title="Pindah ke menu Enrichment utk kategori & kota job ini" style="display:inline-flex;align-items:center;gap:4px;">${ICONS.zap}<span>Enrich</span></button>` : "",
+        `<button class="btn btn-ghost-danger btn-sm" data-deljob="${j.id}" title="Hapus riwayat job" style="display:inline-flex;align-items:center;gap:4px;">${ICONS.trash}<span>Hapus</span></button>`,
       ].filter(Boolean).join(" ");
 
       return `
@@ -980,16 +1023,25 @@ async function loadBrowserStatus() {
   try {
     const s = await api("/api/browser-status");
     if (s.has_cookies) {
-      el.textContent = "✅ Profil browser siap — sesi Google tersimpan.";
+      el.innerHTML = `${ICONS.checkCircle}<span>Profil browser siap — sesi Google tersimpan.</span>`;
       el.style.color = "var(--success, #16a34a)";
+      el.style.display = "inline-flex";
+      el.style.alignItems = "center";
+      el.style.gap = "6px";
       stopBrowserPolling();
     } else {
-      el.textContent = "⚠️ Belum login ke Google — klik \"Buka Browser Login\".";
+      el.innerHTML = `${ICONS.alertTriangle}<span>Belum login ke Google — klik "Buka Browser Login".</span>`;
       el.style.color = "var(--warning, #d97706)";
+      el.style.display = "inline-flex";
+      el.style.alignItems = "center";
+      el.style.gap = "6px";
     }
   } catch (_) {
-    el.textContent = "Tidak dapat memeriksa status browser.";
+    el.innerHTML = `${ICONS.alertTriangle}<span>Tidak dapat memeriksa status browser.</span>`;
     el.style.color = "var(--danger)";
+    el.style.display = "inline-flex";
+    el.style.alignItems = "center";
+    el.style.gap = "6px";
   }
 }
 
@@ -997,8 +1049,11 @@ $("#btn-browser-login").addEventListener("click", async () => {
   const el = $("#browser-login-status");
   try {
     await api("/api/browser-login", { method: "POST" });
-    el.textContent = "Chrome terbuka — login ke akun Google, lalu tutup jendelanya.";
+    el.innerHTML = `${ICONS.info}<span>Chrome terbuka — login ke akun Google, lalu tutup jendelanya.</span>`;
     el.style.color = "var(--muted)";
+    el.style.display = "inline-flex";
+    el.style.alignItems = "center";
+    el.style.gap = "6px";
     stopBrowserPolling();
     browserPollTimer = setInterval(() => {
       if ($("#page-scrape").classList.contains("hidden")) { stopBrowserPolling(); return; }
@@ -1076,7 +1131,7 @@ function renderSortIndicators() {
     const active = th.dataset.sort === leadState.sort_by;
     th.classList.toggle("sorted", active);
     const arrow = th.querySelector(".sort-arrow");
-    if (arrow) arrow.textContent = active ? (leadState.sort_dir === "asc" ? "▲" : "▼") : "";
+    if (arrow) arrow.innerHTML = active ? (leadState.sort_dir === "asc" ? ICONS.sortAsc : ICONS.sortDesc) : "";
   });
 }
 
@@ -1380,7 +1435,7 @@ $("#btn-bulk-delete").addEventListener("click", async () => {
   } catch (ex) { alert("Hapus gagal: " + ex.message); }
 });
 
-// Batal / ✕ — kosongkan seleksi
+// Batal — kosongkan seleksi
 $("#btn-clear-selection").addEventListener("click", () => {
   selectedLeads.clear();
   document.querySelectorAll(".lead-check").forEach((cb) => (cb.checked = false));
@@ -1767,7 +1822,7 @@ function renderDedupGroupBody(card, g) {
     const active = sort && th.dataset.dsort === sort.key;
     th.classList.toggle("sorted", !!active);
     const arrow = th.querySelector(".sort-arrow");
-    if (arrow) arrow.textContent = active ? (sort.dir === "asc" ? "▲" : "▼") : "";
+    if (arrow) arrow.innerHTML = active ? (sort.dir === "asc" ? ICONS.sortAsc : ICONS.sortDesc) : "";
   });
 
   // Rebind tombol di card ini
