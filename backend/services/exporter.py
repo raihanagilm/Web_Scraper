@@ -39,9 +39,6 @@ BASE_COLUMNS = [
 # Kolom tambahan sesuai sumber (muncul bila ada isi)
 EXTRA_COLUMNS = {
     "dapodik": [("npsn", "NPSN"), ("nama_kepsek", "Nama Kepsek")],
-    "jobstreet": [],
-    "glints": [],
-    "lpse": [],
     "gmaps": [],
 }
 
@@ -64,7 +61,7 @@ def _build_columns(items: list[dict]) -> list[tuple[str, str]]:
     cols = list(BASE_COLUMNS)
     sources = {it.get("source") for it in items}
     seen = {key for key, _ in cols}
-    for src in ["dapodik", "jobstreet", "glints", "lpse"]:
+    for src in ["dapodik"]:
         if src in sources:
             for key, label in EXTRA_COLUMNS.get(src, []):
                 if key not in seen:

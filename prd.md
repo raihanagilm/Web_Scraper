@@ -30,7 +30,7 @@ Tool internal berbasis web untuk **mengotomatiskan pengumpulan lead bisnis (B2B)
 
 **Masalah yang dipecahkan:** Proses pengumpulan data sekolah/perusahaan/UMKM saat ini masih manual (buka Google Maps satu-salin, catat di Excel). Tool ini menggantikannya dengan pipeline otomatis yang rapi, bisa diulang, dan terdokumentasi.
 
-**Arsitektur sumber data (Seed → Enrichment):** Sumber utama adalah **Google Maps (GMaps)** — sistem mengambil *daftar leads dasar* (nama instansi, alamat, kota, telp, email, website, link GMaps) dari GMaps. Karena banyak data penting **tidak tercantum di GMaps** (NPSN, nama kepala sekolah, posisi rekrutmen, deskripsi IT, penanggung jawab vendor), lead kemudian **diperkaya (enrichment)** oleh sumber pendukung: **Dapodik Kemendikbud** (melengkapi Sekolah), **Jobstreet / Glints** (melengkapi Perusahaan/Corporate serta UMKM, Retail, Resto/Kafe), dan **LPSE Daerah** (melengkapi Vendor B2G / Kontraktor).
+**Arsitektur sumber data (Seed → Enrichment):** Sumber utama adalah **Google Maps (GMaps)** — sistem mengambil *daftar leads dasar* (nama instansi, alamat, kota, telp, email, website, link GMaps) dari GMaps. Karena banyak data kontak atau profil penting **tidak tercantum di GMaps** (NPSN, nama kepala sekolah, multi-email, akun media sosial), lead kemudian **diperkaya (enrichment)** oleh sumber pendukung: **Dapodik Kemendikbud** (melengkapi Sekolah) dan **Pencarian Google / Web** (melengkapi kontak umum, email, website, & multi-sosmed).
 
 **Target akhir:** 500–1.000+ kontak bisnis terverifikasi (unique leads) yang siap untuk keperluan IT Training, Bootcamp, Outsource Dev, Corporate Training, Aplikasi POS, System Inventaris, IT Consulting, dan Custom System.
 
@@ -40,7 +40,7 @@ Tool internal berbasis web untuk **mengotomatiskan pengumpulan lead bisnis (B2B)
 
 ### Tujuan (v1)
 - Mengganti alur manual menjadi **web app** yang bisa dipakai tim non-teknis.
-- Scraping **Google Maps sebagai sumber utama (seed)** untuk daftar leads, lalu **enrichment** via 3 sumber pendukung (Dapodik, Jobstreet/Glints, LPSE Daerah) sesuai segmen pasar.
+- Scraping **Google Maps sebagai sumber utama (seed)** untuk daftar leads, lalu **enrichment** via sumber pendukung (Dapodik Kemendikbud dan Google Search) sesuai segmen pasar.
 - **Anti-duplikat 2 lapis** (otomatis via DB + review manual).
 - Fitur **perbandingan & penggabungan** lead dari sumber berbeda (pilih mana yang dipertahankan/digabung/dihapus).
 - **Progress realtime** via WebSocket + kemampuan **Stop/Batalkan** job.
@@ -86,12 +86,12 @@ Prinsip umum: **Google Maps adalah sumber utama (seed) untuk semua segmen** — 
 
 | Segment Pasar | Sumber Utama (Seed) | Sumber Pendukung (Enrichment) | Prioritas | Layanan Edtekno Target | Field dari Seed (GMaps) | Field dari Enrichment |
 |---|---|---|---|---|---|---|
-| Sekolah | **Google Maps** | **Dapodik Kemendikbud** | High | IT Training, Bootcamp, Workshop | Nama Sekolah, Alamat, Kota, Telp, Email, Website, Sosmed, Link GMaps | **NPSN**, **Nama Kepsek** |
-| Perusahaan/Corporate (Jateng) | **Google Maps** | **Jobstreet / Glints** | High | Outsource Dev, Corporate Training | Nama PT, Alamat, Kota, Telp, Email, Website, Sosmed, Link GMaps | **Posisi Rekrutmen**, **Deskripsi IT** |
-| UMKM, Retail, Resto/Kafe | **Google Maps** | **Jobstreet / Glints** | Medium | Aplikasi POS, System Inventaris | Nama Bisnis, Kategori, Alamat, Kota, No. WA/Telp, Email, Website, Sosmed, Link GMaps | **Posisi Rekrutmen**, **Deskripsi IT** |
-| Vendor B2G / Kontraktor | **Google Maps** | **LPSE Daerah** | Medium | IT Consulting, Custom System | Nama PT/CV, Alamat, Kota, Telp/Email, Website, Sosmed, Link GMaps | **Penanggung Jawab**, **Bidang Usaha (detail)** |
+| Sekolah | **Google Maps** | **Dapodik Kemendikbud**, **Google** | High | IT Training, Bootcamp, Workshop | Nama Sekolah, Alamat, Kota, Telp, Email, Website, Sosmed, Link GMaps | **NPSN**, **Nama Kepsek**, **Email Resmi** |
+| Perusahaan/Corporate (Jateng) | **Google Maps** | **Pencarian Google / Web** | High | Outsource Dev, Corporate Training | Nama PT, Alamat, Kota, Telp, Email, Website, Sosmed, Link GMaps | **Telp/WA**, **Email**, **Website**, **Multi-Sosmed** |
+| UMKM, Retail, Resto/Kafe | **Google Maps** | **Pencarian Google / Web** | Medium | Aplikasi POS, System Inventaris | Nama Bisnis, Kategori, Alamat, Kota, No. WA/Telp, Email, Website, Sosmed, Link GMaps | **Telp/WA**, **Email**, **Website**, **Multi-Sosmed** |
+| Vendor B2G / Kontraktor | **Google Maps** | **Pencarian Google / Web** | Medium | IT Consulting, Custom System | Nama PT/CV, Alamat, Kota, Telp/Email, Website, Sosmed, Link GMaps | **Telp/WA**, **Email**, **Website**, **Multi-Sosmed** |
 
-> **Catatan enrichment:** Enrichment bersifat *lazy* — hanya dijalankan untuk lead yang field pendukungnya masih kosong, dan hanya mengisi field kosong (tidak menimpa data yang sudah ada). Matching dilakukan via fuzzy match nama + kota, NPSN (Sekolah), domain website/email (Perusahaan/UMKM), atau nama PT/kota (Vendor).
+> **Catatan enrichment:** Enrichment bersifat *lazy* — hanya dijalankan untuk lead yang field pendukungnya masih kosong, dan hanya mengisi field kosong (tidak menimpa data yang sudah ada). Matching dilakukan via fuzzy match nama + kota, NPSN (Sekolah), atau domain website/email.
 
 ### 5.2 Catatan Teknis per Sumber
 
@@ -103,34 +103,23 @@ Prinsip umum: **Google Maps adalah sumber utama (seed) untuk semua segmen** — 
 - Output: *daftar leads dasar* yang menjadi input utama pipeline; field pendukung yang tidak ada di GMaps akan diisi oleh sumber enrichment di bawah.
 
 **Dapodik / Kemendikdasmen (Data Pokok Pendidikan) — Enrichment (Sekolah)**
-- Peran: melengkapi lead Sekolah hasil seed GMaps dengan **NPSN** dan **Nama Kepala Sekolah** (field yang tidak tersedia di GMaps).
+- Peran: melengkapi lead Sekolah hasil seed GMaps dengan **NPSN**, **Nama Kepala Sekolah**, dan **Email Resmi** (field yang tidak tersedia di GMaps).
 - Sumber data: ekosistem data Kemendikbud (`referensi.data.kemdikbud.go.id`, `dapo.kemdikbud.go.id`, `sekolah.data.kemdikbud.go.id`) — **bukan** portal berita `www.kemendikdasmen.go.id`.
-- Endpoint internal (JSON) diverifikasi saat implementasi (situs butuh JS/browser).
-- Field unggulan: NPSN, Nama Kepala Sekolah, alamat resmi, kontak.
-- Strategi: scraping daftar per kota → buka halaman detail per sekolah → tarik field.
+- Field unggulan: NPSN, Nama Kepala Sekolah, alamat resmi, kontak/email.
+- Strategi: pencarian langsung per nama sekolah via browser headful → buka halaman detail per sekolah → tarik field.
 
-**LPSE Daerah — Enrichment (Vendor B2G / Kontraktor)**
-- Peran: melengkapi lead Vendor hasil seed GMaps dengan **Penanggung Jawab** dan detail **Bidang Usaha** dari profil penyedia pada pengumuman tender.
-- Setiap daerah punya instance tersendiri (contoh: `lpse.salatiga.go.id`, `lpse.semarang.go.id`).
-- Strategi: akses daftar pengumuman tender → buka profil penyedia/vendor → tarik data badan usaha.
-- Konfigurasi per-daerah (URL base + selector) disimpan di config.
-- Pilot v1: 1–2 daerah (Salatiga, Semarang).
-
-**Jobstreet / Glints — Enrichment (Perusahaan/Corporate & UMKM, Retail, Resto/Kafe)**
-- Peran: melengkapi lead hasil seed GMaps dengan **Posisi Rekrutmen** (lowongan IT aktif) dan **Deskripsi IT** (ringkasan kebutuhan teknologi perusahaan) — sinyal kualifikasi prospek.
-- **Risiko tinggi:** anti-bot ketat (Datadome/Cloudflare), login-wall, ToS melarang scraping.
-- Pendekatan: halaman publik saja, rate-limit 1–3 detik, hormati `robots.txt`, **tidak** menerobos captcha/login.
-- **Kontingensi:** jika diblokir → gunakan **impor CSV manual** (pipeline Cleaner→Dedupe→DB tetap dipakai).
+**Pencarian Google / Web — Enrichment (Umum, Corporate, UMKM, Retail, Vendor)**
+- Peran: melengkapi lead hasil seed GMaps dengan nomor telepon/WA, alamat email, URL website resmi, dan tautan media sosial (Instagram, Facebook, LinkedIn, Twitter/X, TikTok).
+- Pendekatan: query pencarian web DuckDuckGo/HTML parser headful browser, rate-limit 1–3 detik.
 
 ### 5.3 Alur Enrichment Data (Seed → Enrichment → Merge)
 
 1. **Seed (GMaps):** scraper Google Maps menghasilkan *daftar leads dasar* per kategori/kota → Cleaner → upsert ke DB (unique constraint `(source, nama_instansi, kota)`).
-2. **Identifikasi lead belum lengkap:** storage service memilih lead yang field pendukungnya masih kosong — mis. `npsn`/`nama_kepsek` kosong (Sekolah), `posisi_rekrutmen`/`deskripsi_it` kosong (Perusahaan/UMKM), `penanggung_jawab` kosong (Vendor).
+2. **Identifikasi lead belum lengkap:** storage service memilih lead yang field pendukungnya masih kosong — mis. `npsn`/`nama_kepsek`/`email` kosong (Sekolah), atau `telp`/`email`/`website`/`sosmed` kosong (Semua Kategori).
 3. **Enrichment scraper:** scraper pendukung dijalankan hanya untuk lead tersebut (lazy), dengan rate-limit 1–3 detik:
    - **Dapodik** → isi NPSN, nama kepsek, email resmi, & link referensi Kemendikdasmen (Sekolah).
-   - **Jobstreet/Glints** → isi posisi rekrutmen & deskripsi IT (Perusahaan/Corporate, UMKM, Retail, Resto/Kafe).
-   - **LPSE Daerah** → isi penanggung jawab & detail bidang usaha (Vendor B2G/Kontraktor).
-4. **Matching:** fuzzy match `nama_instansi` + `kota`; alternatif NPSN (Sekolah) atau domain website/email (Perusahaan/UMKM). Hasil match di bawah threshold ditandai untuk review manual, bukan otomatis digabung.
+   - **Google Search** → isi telp/WA, email, website resmi, dan akun media sosial (Semua Entitas).
+4. **Matching:** fuzzy match `nama_instansi` + `kota`; alternatif NPSN (Sekolah) atau domain website/email. Hasil match di bawah threshold ditandai untuk review manual, bukan otomatis digabung.
 5. **Merge:** hanya field kosong yang diisi (`update_lead_full` field-level); data yang sudah ada tidak ditimpa. Semua perubahan tercatat dan anti-duplikat (Lapis 1 & 2) tetap berjalan.
 
 ---
@@ -143,7 +132,7 @@ Prinsip umum: **Google Maps adalah sumber utama (seed) untuk semua segmen** — 
 
 ### 6.2 Alur Data (Pipeline)
 
-> View pilih sumber+kategori+kota+max → POST /api/scrape → Job Manager spawn thread → **Step 1 — Seed: Scraper GMaps** (rate-limit 1-3s, progres dipantau via **polling** `/api/jobs` tiap 3 detik) → Cleaner (normalisasi telp→628, nama, validasi email, dedup key) → Storage Service (upsert MySQL, unique constraint anti-duplikat; jumlah real tersimpan dicatat ke `items_created`/`items_updated`) → **Step 2 — Enrichment (dipicu manual):** tombol **⚡ Enrich** pada baris job seed di Riwayat Job (kategori+kota otomatis ikut job, tanpa "maks" — memproses SEMUA kandidat yang field-nya kosong) → scraper pendukung (Dapodik per-nama-sekolah / Jobstreet-Glints / LPSE Daerah) → match & merge field-level (hanya isi field kosong, tidak menimpa) → [opsional] Exporter (Excel profesional).
+> View pilih sumber+kategori+kota+max → POST /api/scrape → Job Manager spawn thread → **Step 1 — Seed: Scraper GMaps** (rate-limit 1-3s, progres dipantau via **polling** `/api/jobs` tiap 3 detik) → Cleaner (normalisasi telp→628, nama, validasi email, dedup key) → Storage Service (upsert MySQL, unique constraint anti-duplikat; jumlah real tersimpan dicatat ke `items_created`/`items_updated`) → **Step 2 — Enrichment (dipicu manual):** tombol **⚡ Enrich** pada baris job seed di Riwayat Job (kategori+kota otomatis ikut job, tanpa "maks" — memproses SEMUA kandidat yang field-nya kosong) → scraper pendukung (Dapodik per-nama-sekolah / Pencarian Google Web) → match & merge field-level (hanya isi field kosong, tidak menimpa) → [opsional] Exporter (Excel profesional).
 
 **Status job watchdog:** setiap polling `GET /api/jobs`, job `running` yang prosesnya mati (server restart, browser ditutup, hang >600 dtk) dikoreksi otomatis menjadi `error` + log alasan.
 
@@ -177,7 +166,7 @@ Prinsip umum: **Google Maps adalah sumber utama (seed) untuk semua segmen** — 
 
 **cities**: id, kode (`K-{KOTA}-{001}`), name UNIQUE, province, created_at
 
-**leads**: id, kode (`LD-{KATEGORI}-{001}`), source (gmaps/dapodik/lpse/jobstreet/glints), priority (high/medium), nama_instansi, category_id → categories (lookup — kategori dinormalisasi via FK), telp (628), email (TEXT multi-email), alamat, city_id → cities (lookup), link_gmaps, website, instagram, facebook, linkedin, twitter_x, tiktok, sosmed, link_source, status (New/Contacted/Follow Up/Deal/Rejected), npsn NULL, nama_kepsek NULL, created_at, updated_at. **Unique: (source, nama_instansi, city_id)** — kategori & kota dinormalisasi ke tabel lookup (migrasi fase 1), bukan kolom string.
+**leads**: id, kode (`LD-{KATEGORI}-{001}`), source (gmaps/dapodik), priority (high/medium), nama_instansi, category_id → categories (lookup — kategori dinormalisasi via FK), telp (628), email (TEXT multi-email), alamat, city_id → cities (lookup), link_gmaps, website, instagram, facebook, linkedin, twitter_x, tiktok, sosmed, link_source, status (New/Contacted/Follow Up/Deal/Rejected), npsn NULL, nama_kepsek NULL, created_at, updated_at. **Unique: (source, nama_instansi, city_id)** — kategori & kota dinormalisasi ke tabel lookup (migrasi fase 1), bukan kolom string.
 
 **scrape_jobs**: id (format ringkas atau UUID), source, category, city, max_results, status (pending/running/completed/cancelled/error), progress, total_found, items_created, items_updated, log, started_at, finished_at
 
@@ -207,9 +196,8 @@ Hijau (#0E2A1E sidebar, #2F6B4F tombol, #F2F6F3 paper), simpel fungsional anti-A
 
 - Login admin/agiltampan berhasil; tanpa login → 401
 - Scrape 100 lead sekolah Salatiga GMaps → tanpa duplikat exact
-- Enrichment Dapodik pada lead Sekolah hasil seed → NPSN & nama kepsek terisi
-- Enrichment LPSE pada lead Vendor hasil seed → penanggung jawab terisi
-- Enrichment Jobstreet/Glints pada lead Perusahaan/UMKM hasil seed → posisi rekrutmen & deskripsi IT terisi
+- Enrichment Dapodik pada lead Sekolah hasil seed → NPSN, nama kepsek, & email terisi
+- Enrichment Google Search pada lead hasil seed → kontak telp/WA, email, web, & medsos terisi
 - Job bisa di-cancel via Stop; job yang prosesnya mati (browser ditutup/server restart) dikoreksi otomatis → `error`
 - Progress realtime via polling `/api/jobs` (interval 3 detik)
 - Kolom Ditemukan menampilkan format informatif misal `98/100 dari 120` (terambil / target dari total listing GMaps)
@@ -232,8 +220,7 @@ Hijau (#0E2A1E sidebar, #2F6B4F tombol, #F2F6F3 paper), simpel fungsional anti-A
 - **M0** Scaffolding → `feat: project scaffolding` ✅
 - **M1** Scraper GMaps multi-kategori (seed semua segmen) → `feat: gmaps multi-category scraper` ✅
 - **M2** Scraper Dapodik (enrichment Sekolah: NPSN, kepsek — pencarian per nama sekolah) → `feat: dapodik school scraper` ✅
-- **M3** Scraper LPSE (enrichment Vendor: penanggung jawab, bidang usaha) → `feat: lpse vendor scraper` ✅
-- **M4** Scraper Jobstreet/Glints (enrichment Perusahaan/UMKM: posisi rekrutmen, deskripsi IT) → `feat: jobstreet/glints enrichment scraper` ✅
+- **M3** Scraper Google Search (enrichment Kontak Umum: telp/WA, email, web, multi-sosmed) → `feat: google enrichment scraper` ✅
 - **M5** Job Manager + API + Dedup + Importer → `feat: job manager, dedupe & merge` ✅
 - **M6** Frontend + Polish → `feat: frontend & polish` ✅ (termasuk: hapus riwayat job, watchdog status, ⚡ Enrich per baris, kolom "Terambil", enrichment monitoring page)
 
@@ -246,18 +233,16 @@ Estimasi: 6–8 minggu (1 orang, paruh waktu magang).
 - Anti-bot GMaps → persistent profile + delay + retry
 - Struktur Kemdikbud berubah → verifikasi di M1, selector di config
 - TiDB idle disconnect → pooling + pool_recycle
-- Jobstreet/Glints blokir → kontingensi impor CSV
-- LPSE beda struktur per daerah → config per-daerah, 1–2 pilot
 - Data bocor → .env di-gitignore, login wajib
 
 ---
 
 ## 15. Asumsi
 
-Chrome terinstall, internet stabil, kredensial TiDB aktif, seed admin/agiltampan via .env, v1 localhost, hanya halaman publik, target 500–1.000+ leads agregat. Komposisi data: seluruh lead berawal dari **seed Google Maps**; data pendukung (NPSN, kepsek, posisi rekrutmen, deskripsi IT, penanggung jawab) diisi bertahap oleh Dapodik / Jobstreet-Glints / LPSE Daerah sesuai segmen — coverage enrichment bergantung ketersediaan data di sumber pendukung.
+Chrome terinstall, internet stabil, kredensial TiDB aktif, seed admin/agiltampan via .env, v1 localhost, hanya halaman publik, target 500–1.000+ leads agregat. Komposisi data: seluruh lead berawal dari **seed Google Maps**; data pendukung (NPSN, kepsek, email, website, sosmed) diisi bertahap oleh Dapodik & Google Search sesuai segmen.
 
 ---
 
 ## 16. Referensi
 
-Sumber: **Google Maps (sumber utama/seed)** untuk daftar leads; **Dapodik Kemendikbud** (enrichment Sekolah), **Jobstreet & Glints** (enrichment Perusahaan/Corporate & UMKM/Retail/Resto/Kafe), **LPSE daerah** (enrichment Vendor B2G/Kontraktor). Teknologi: Python 3.10+, FastAPI, Playwright, BeautifulSoup, Pandas, openpyxl, SQLAlchemy, pymysql, bcrypt. DB: MySQL TiDB Cloud. Docs: Swagger /docs.
+Sumber: **Google Maps (sumber utama/seed)** untuk daftar leads; **Dapodik Kemendikbud** (enrichment Sekolah) dan **Pencarian Google / Web** (enrichment Kontak Umum & Medsos). Teknologi: Python 3.10+, FastAPI, Playwright, BeautifulSoup, Pandas, openpyxl, SQLAlchemy, pymysql, bcrypt. DB: MySQL TiDB Cloud. Docs: Swagger /docs.

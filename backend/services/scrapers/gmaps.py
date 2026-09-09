@@ -60,10 +60,10 @@ CATEGORY_KEYWORDS = {
 # Mapping kategori ke sumber enrichment (PRD v1.1 §5.3)
 CATEGORY_ENRICHMENT = {
     "sekolah": ["dapodik", "google"],
-    "corporate": ["jobstreet", "glints", "google"],
-    "perusahaan": ["jobstreet", "glints", "google"],
-    "umkm": ["google", "jobstreet", "glints"],
-    "retail": ["google", "jobstreet", "glints"],
+    "corporate": ["google"],
+    "perusahaan": ["google"],
+    "umkm": ["google"],
+    "retail": ["google"],
     "resto": ["google"],
     "restoran": ["google"],
     "kafe": ["google"],
@@ -71,9 +71,9 @@ CATEGORY_ENRICHMENT = {
     "rumah sakit": ["google"],
     "klinik": ["google"],
     "hotel": ["google"],
-    "vendor": ["lpse", "google"],
-    "kontraktor": ["lpse", "google"],
-    "b2g": ["lpse", "google"],
+    "vendor": ["google"],
+    "kontraktor": ["google"],
+    "b2g": ["google"],
 }
 
 

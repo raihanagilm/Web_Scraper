@@ -88,7 +88,7 @@ Master data kota/kabupaten (lookup FK dari `leads.city_id`).
 |---|---|---|---|
 | **id** | INT | PK, autoincrement | ID internal database |
 | **kode** | VARCHAR(50) | INDEX, NULLABLE | Kode bisnis terstruktur, format `LD-{KATEGORI}-{001}` |
-| **source** | ENUM | NOT NULL — `gmaps`/`dapodik`/`lpse`/`jobstreet`/`glints` | dari mana data asal |
+| **source** | ENUM | NOT NULL — `gmaps`/`dapodik` | dari mana data asal |
 | **priority** | ENUM | NOT NULL, default `medium` — `high`/`medium` | per segmen pasar |
 | **nama_instansi** | VARCHAR(255) | NOT NULL, default "" | nama sekolah/PT/bisnis |
 | **category_id** | INT | FK → categories.id, ON DELETE SET NULL, NULLABLE | di-resolve dari string `kategori` |
@@ -124,7 +124,7 @@ Audit setiap job scraping (seed/enrichment). `category`/`city` sengaja denormali
 | Kolom | Tipe | Constraint / Default | Keterangan |
 |---|---|---|---|
 | **id** | VARCHAR(36) | PK | Format ringkas: `SCRP_{kategori[:14]}_{YYYYMMDD_HHMMSS}` (atau UUID legacy) |
-| **source** | VARCHAR(50) | NOT NULL | gmaps/dapodik/jobstreet/glints/lpse |
+| **source** | VARCHAR(50) | NOT NULL | gmaps/dapodik/google |
 | **category** | VARCHAR(100) | default "" | snapshot kategori saat job jalan |
 | **city** | VARCHAR(100) | default "" | snapshot kota |
 | **max_results** | INT | default 50 | |
@@ -159,7 +159,7 @@ Audit aksi review duplikat (PRD §10 Lapis 2). JSON snapshot sebelum data dihapu
 
 | Enum | Nilai |
 |---|---|
-| `source_enum` | `gmaps`, `dapodik`, `lpse`, `jobstreet`, `glints` |
+| `source_enum` | `gmaps`, `dapodik` |
 | `priority_enum` | `high`, `medium` |
 | `status_enum` | `New`, `Contacted`, `Follow Up`, `Deal`, `Rejected` |
 | `job_status_enum` | `pending`, `running`, `completed`, `cancelled`, `error` |
@@ -171,11 +171,11 @@ Audit aksi review duplikat (PRD §10 Lapis 2). JSON snapshot sebelum data dihapu
 
 | Segmen (kategori) | Seed | Enrichment | Field yang diisi |
 |---|---|---|---|
-| umum / instansi (rumah sakit, hotel, kafe, dll) | gmaps | google | `telp`, `email`, `website`, `sosmed` |
+| umum / instansi (rumah sakit, hotel, kafe, dll) | gmaps | google | `telp`, `email`, `website`, `sosmed`, `instagram`, `facebook`, `linkedin`, `twitter_x`, `tiktok` |
 | sekolah | gmaps | dapodik, google | `npsn`, `nama_kepsek`, `email`, `link_source` / kontak umum |
-| corporate / perusahaan | gmaps | jobstreet, glints, google | `posisi_rekrutmen`, `deskripsi_it` / kontak umum |
-| umkm / retail / resto / kafe | gmaps | google, jobstreet, glints | `telp`, `email`, `website`, `sosmed`, `posisi_rekrutmen`, `deskripsi_it` |
-| vendor / kontraktor / b2g | gmaps | lpse, google | `penanggung_jawab` / kontak umum |
+| corporate / perusahaan | gmaps | google | `telp`, `email`, `website`, `sosmed`, `instagram`, `facebook`, `linkedin`, `twitter_x`, `tiktok` |
+| umkm / retail / resto / kafe | gmaps | google | `telp`, `email`, `website`, `sosmed`, `instagram`, `facebook`, `linkedin`, `twitter_x`, `tiktok` |
+| vendor / kontraktor / b2g | gmaps | google | `telp`, `email`, `website`, `sosmed`, `instagram`, `facebook`, `linkedin`, `twitter_x`, `tiktok` |
 
 Referensi: [prd.md](prd.md) §5.1 & §5.3, `enrichment_service.ENRICHMENT_FIELDS`,
 `job_manager.ENRICHMENT_SOURCES`.
@@ -196,7 +196,7 @@ seeder (gmaps) ──raw_items──▶ cleaner.clean_lead
                             ▼
                           leads (MySQL/TiDB)
                             ▲
-enrichment (dapodik/jobstreet/glints/lpse) ──match_and_merge──┘
+enrichment (dapodik/google) ──match_and_merge──┘
                             │  isi field kosong; non-match di-log (tidak disimpan)
                             ▼
                    Review Duplikat (dedup_service) → merge_history

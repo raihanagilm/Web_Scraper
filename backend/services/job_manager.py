@@ -2,7 +2,7 @@
 
 Flow scraping (PRD v1.1):
 1. Seed: GMaps → daftar leads dasar
-2. Enrichment: Dapodik/Jobstreet/Glints/LPSE → melengkapi field kosong
+2. Enrichment: Dapodik / Google Search → melengkapi field kosong
 """
 import threading
 import time
@@ -18,25 +18,17 @@ from backend.services import storage_service as store
 from backend.services.scrapers.dapodik import DapodikScraper
 from backend.services.scrapers.gmaps import GmapsScraper
 from backend.services.scrapers.google import GoogleScraper
-from backend.services.scrapers.jobstreet import JobstreetScraper
-from backend.services.scrapers.glints import GlintsScraper
-from backend.services.scrapers.lpse import LpseScraper
 
 SCRAPER_REGISTRY = {
     "gmaps": GmapsScraper,
-    "google": GoogleScraper,     # Enrichment Kontak Umum (WA/Telp, Email, Web, IG)
-    "dapodik": DapodikScraper,   # M2 — enrichment Sekolah (NPSN & kepsek)
-    "lpse": LpseScraper,
-    "jobstreet": JobstreetScraper,
-    "glints": GlintsScraper,
+    "google": GoogleScraper,     # Enrichment Kontak Umum (WA/Telp, Email, Web, IG, FB, LI, X, TikTok)
+    "dapodik": DapodikScraper,   # Enrichment Sekolah (NPSN, kepsek, email)
 }
 
 # Mapping sumber enrichment (PRD v1.1 §5.3)
 ENRICHMENT_SOURCES = {
     "dapodik": ["sekolah"],
-    "jobstreet": ["corporate", "perusahaan", "umkm", "retail", "resto", "restoran", "kafe", "cafe"],
-    "glints": ["corporate", "perusahaan", "umkm", "retail", "resto", "restoran", "kafe", "cafe"],
-    "lpse": ["vendor", "kontraktor", "b2g"],
+    "google": ["umum", "corporate", "perusahaan", "umkm", "retail", "resto", "restoran", "kafe", "cafe", "vendor", "kontraktor", "b2g", "hotel", "rumah sakit", "klinik", "kesehatan"],
 }
 
 
@@ -107,7 +99,7 @@ class JobManager:
                 category=category, city=city, max_results=eff_max,
                 targets=targets, job_id=job_id,
             )
-        elif source in ("gmaps", "jobstreet", "glints", "lpse"):
+        elif source == "gmaps":
             scraper = cls(category=category, city=city, max_results=eff_max, job_id=job_id)
         else:
             scraper = cls(category=category, city=city, max_results=eff_max)
@@ -201,7 +193,7 @@ class JobManager:
             store.update_job(db, job_id, status="completed", progress=len(raw_items), total_found=preserved_found, finished_at=datetime.utcnow())
 
     def _run_enrichment(self, db, job_id: str, scraper, raw_items) -> None:
-        """Enrichment (jobstreet/glints/lpse/dapodik/google): cocokkan hasil ke lead seed
+        """Enrichment (dapodik/google): cocokkan hasil ke lead seed
         & isi hanya field kosong — TIDAK membuat lead baru.
 
         Target lead diambil dari DB berdasar `category` & `city` input user

@@ -2,7 +2,7 @@
 
 Flow PRD v1.1:
 1. Seed: GMaps → daftar leads dasar
-2. Enrichment: Dapodik/Jobstreet/Glints/LPSE → melengkapi field kosong
+2. Enrichment: Dapodik / Google Search → melengkapi field kosong
 """
 import threading
 from typing import Optional
@@ -38,7 +38,7 @@ class EnrichmentRequest(BaseModel):
     """
     category: str = "sekolah"
     city: str = "salatiga"
-    enrichment_source: str = ""  # dapodik, jobstreet, glints, lpse (kosong = auto berdasarkan kategori)
+    enrichment_source: str = ""  # dapodik, google (kosong = auto berdasarkan kategori)
     max_results: int = 0         # 0 = semua kandidat (tanpa batas)
     job_id: Optional[str] = None
 
@@ -62,17 +62,17 @@ def list_sources(_: dict = Depends(require_auth)) -> dict:
             "rumah sakit": {"label": "Rumah Sakit / Kesehatan", "enrichment": ["google"]},
             "kesehatan": {"label": "Kesehatan / Faskes", "enrichment": ["google"]},
             "hotel": {"label": "Hotel / Penginapan", "enrichment": ["google"]},
-            "corporate": {"label": "Perusahaan / Corporate (Jateng)", "enrichment": ["jobstreet", "glints", "google"]},
-            "perusahaan": {"label": "Perusahaan / Corporate (Jateng)", "enrichment": ["jobstreet", "glints", "google"]},
-            "umkm": {"label": "UMKM, Retail, Resto/Kafe", "enrichment": ["google", "jobstreet", "glints"]},
-            "retail": {"label": "UMKM, Retail, Resto/Kafe", "enrichment": ["google", "jobstreet", "glints"]},
+            "corporate": {"label": "Perusahaan / Corporate (Jateng)", "enrichment": ["google"]},
+            "perusahaan": {"label": "Perusahaan / Corporate (Jateng)", "enrichment": ["google"]},
+            "umkm": {"label": "UMKM, Retail, Resto/Kafe", "enrichment": ["google"]},
+            "retail": {"label": "UMKM, Retail, Resto/Kafe", "enrichment": ["google"]},
             "resto": {"label": "UMKM, Retail, Resto/Kafe", "enrichment": ["google"]},
             "restoran": {"label": "UMKM, Retail, Resto/Kafe", "enrichment": ["google"]},
             "kafe": {"label": "UMKM, Retail, Resto/Kafe", "enrichment": ["google"]},
             "cafe": {"label": "UMKM, Retail, Resto/Kafe", "enrichment": ["google"]},
-            "vendor": {"label": "Vendor B2G / Kontraktor", "enrichment": ["lpse", "google"]},
-            "kontraktor": {"label": "Vendor B2G / Kontraktor", "enrichment": ["lpse", "google"]},
-            "b2g": {"label": "Vendor B2G / Kontraktor", "enrichment": ["lpse", "google"]},
+            "vendor": {"label": "Vendor B2G / Kontraktor", "enrichment": ["google"]},
+            "kontraktor": {"label": "Vendor B2G / Kontraktor", "enrichment": ["google"]},
+            "b2g": {"label": "Vendor B2G / Kontraktor", "enrichment": ["google"]},
         },
     }
 

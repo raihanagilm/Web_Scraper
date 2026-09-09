@@ -33,6 +33,7 @@
 ├── tools/
 │   ├── check_docs_sync.py          # Validator sinkronisasi trio dokumen (hook)
 │   ├── drop_job_and_vendor_columns.py # Skrip migrasi DDL hapus kolom posisi_rekrutmen, deskripsi_it, penanggung_jawab
+│   ├── drop_jobstreet_glints_lpse_sources.py # Skrip migrasi DDL sesuaikan source enum ke gmaps/dapodik
 │   ├── migrate_multi_social_and_codes.py # Skrip migrasi DDL multi-medsos & business code ID
 │   └── migrate_tiktok_and_clean_socials.py # Skrip migrasi DDL tiktok & pembersihan relokasi sosial media
 ├── .clinerules/
@@ -78,10 +79,7 @@
 │   │       ├── base.py             # BaseScraper: rate_limit 1–3s, cancel, emit_progress
 │   │       ├── gmaps.py            # GmapsScraper (SEED semua segmen) + CATEGORY_KEYWORDS
 │   │       ├── dapodik.py          # DapodikScraper (enrichment Sekolah: NPSN, kepsek)
-│   │       ├── google.py           # GoogleScraper (enrichment Umum: telp/WA, email, website, sosmed via DuckDuckGo/Web)
-│   │       ├── jobstreet.py        # JobstreetScraper (enrichment: posisi rekrutmen, deskripsi IT)
-│   │       ├── glints.py           # GlintsScraper (enrichment: posisi rekrutmen, deskripsi IT)
-│   │       └── lpse.py             # LpseScraper (enrichment Vendor: penanggung jawab)
+│   │       └── google.py           # GoogleScraper (enrichment Kontak Umum: telp/WA, email, website, sosmed via DuckDuckGo/Web)
 │   ├── data/
 │   │   ├── exports/                # Hasil export .xlsx / file CSV (dynamic, jangan di-hook)
 │   │   └── uploads/                # Upload impor CSV (optional)
@@ -125,7 +123,7 @@ POST /api/scrape  (atau /api/enrich)
       └─ threading.Thread(_run) — background
   _run → scraper.run() → raw_items
        ├─ Seed (gmaps): store.save_raw_items (upsert tiap item) → leads
-       └─ Enrichment (jobstreet/glints/lpse/dapodik):
+       └─ Enrichment (dapodik/google):
             enrichment_service.match_and_merge(...) — cocokkan hasil ke lead seed
             yang sudah di DB (filter kategori+kota & field kosong), isi HANYA field
             kosong, TIDAK membuat lead baru; progress = jumlah lead yang diisi.
@@ -242,7 +240,6 @@ Alur konseptual PRD v1.1 (lihat [prd.md](prd.md) §6.2); implementasi aktual di 
 | `backend/services/scrapers/gmaps.py` | Seed semua segmen; `CATEGORY_KEYWORDS`, `INVALID_SCHOOL` regex, `browser_status`/`browser_login`, `is_alive()` (deteksi jendela Chrome ditutup) |
 | `backend/services/scrapers/dapodik.py` | **Enrichment Sekolah**: cari NPSN+kepsek per nama sekolah (target dari JobManager) di referensi.data.kemdikbud.go.id; output → `match_and_merge` |
 | `backend/services/scrapers/google.py` | **Enrichment Kontak Umum (Google/Web)**: cari no. WA/telp, email, website, sosmed (Instagram) per target via DuckDuckGo HTML parser; output → `match_and_merge` |
-| `backend/services/scrapers/{jobstreet,glints,lpse}.py` | Enrichment per-source keyword; hasil dinormalisasi → `match_and_merge` |
 | `backend/services/exporter.py` | `BASE_COLUMNS` + `EXTRA_COLUMNS` per sumber → XLSX/CSV |
 | `backend/services/importer.py` | Parser CSV label Indonesia → field; kontingensi ketika sumber diblokir |
 | `frontend/app.js` | Menghubungkan UI (`index.html`) ke seluruh API + polling job + tombol Stop; Riwayat Kategori (localStorage, unique, klik-isi); Hapus riwayat job (`DELETE /api/jobs/{id}` + konfirmasi); rumus progress `(found/max)×100` via `jobProgressPct`; format `formatJobResult` (`98/100 dari 120`); **Pemisahan riwayat job**: Scrape khusus gmaps, Enrichment khusus non-gmaps; tombol ⚡ Enrich direct ke form Enrichment; dropdown **📋 Data Belum Lengkap** di Riwayat Enrichment + edit manual via `openEditModal` |
@@ -271,7 +268,6 @@ Jalankan validator: `venv\Scripts\python.exe tools\check_docs_sync.py`
 - Hasil keluar non-zero → ada drift → perbaiki dokumen **sebelum** commit.
 
 Alur dokumen: **prd.md (apa/mengapa) → file.md (di mana / jalannya) → database.md (data)**.
-> terdaftar di `SCRAPER_REGISTRY`** `job_manager.py` (baris komentar "M2"). Jobstreet/Glints/LPSE aktif.
 ---
 
 ## 7. Daftar File untuk Validator (Machine Index)
@@ -293,6 +289,7 @@ scraper_gmaps_sekolah.py
 .vscode/settings.json
 tools/check_docs_sync.py
 tools/drop_job_and_vendor_columns.py
+tools/drop_jobstreet_glints_lpse_sources.py
 tools/migrate_multi_social_and_codes.py
 tools/migrate_tiktok_and_clean_socials.py
 .clinerules/rules.md
@@ -328,11 +325,8 @@ backend/services/storage_service.py
 backend/services/scrapers/__init__.py
 backend/services/scrapers/base.py
 backend/services/scrapers/dapodik.py
-backend/services/scrapers/glints.py
 backend/services/scrapers/gmaps.py
 backend/services/scrapers/google.py
-backend/services/scrapers/jobstreet.py
-backend/services/scrapers/lpse.py
 frontend/app.js
 frontend/index.html
 frontend/style.css

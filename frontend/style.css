@@ -199,10 +199,9 @@ body {
   border-radius: 99px;
   margin-left: 8px;
 }
+.enrich-badge.google { background: #e8f0fe; color: #1a73e8; }
 .enrich-badge.dapodik { background: #e8f5e9; color: #2e7d32; }
-.enrich-badge.jobstreet { background: #e3f2fd; color: #1565c0; }
-.enrich-badge.glints { background: #fff3e0; color: #e65100; }
-.enrich-badge.lpse { background: #f3e5f5; color: #7b1fa2; }
+.enrich-badge.gmaps { background: #fef7e0; color: #b06000; }
 
 /* ===== TAG CLOUD (Riwayat Kategori) ===== */
 .tag-cloud {

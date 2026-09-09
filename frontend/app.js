@@ -270,11 +270,9 @@ renderKeywordChips();
 // ---- Enrichment ----
 // Label tampilan per sumber & field (meta selengkapnya dinamis dari /api/sources)
 const SOURCE_LABELS = {
+  gmaps: "Google Maps",
   google: "Pencarian Google / Web",
   dapodik: "Dapodik Kemdikbud",
-  jobstreet: "Jobstreet",
-  glints: "Glints",
-  lpse: "LPSE Daerah",
 };
 const FIELD_LABELS = {
   telp: "No. WA/Telepon",
@@ -343,7 +341,7 @@ function openEnrichModal(job) {
   let defaultSource = "google";
 
   // Sembunyikan semua badge rekomendasi dulu
-  ["google", "dapodik", "jobstreet", "glints", "lpse"].forEach((src) => {
+  ["google", "dapodik"].forEach((src) => {
     const b = $(`#badge-rec-${src}`);
     if (b) b.classList.add("hidden");
   });
@@ -356,16 +354,8 @@ function openEnrichModal(job) {
     defaultSource = "dapodik";
     const b = $("#badge-rec-dapodik");
     if (b) b.classList.remove("hidden");
-  } else if (cat.includes("vendor") || cat.includes("kontraktor") || cat.includes("b2g") || cat.includes("pengadaan")) {
-    defaultSource = "lpse";
-    const b = $("#badge-rec-lpse");
-    if (b) b.classList.remove("hidden");
-  } else if (cat.includes("corporate") || cat.includes("perusahaan")) {
-    defaultSource = "jobstreet";
-    const b = $("#badge-rec-jobstreet");
-    if (b) b.classList.remove("hidden");
   } else {
-    // Default umum (rumah sakit, klinik, faskes, hotel, kafe, resto, umkm, toko, dll.)
+    // Default umum (corporate, umkm, vendor, rumah sakit, faskes, hotel, kafe, resto, dll.)
     defaultSource = "google";
     const b = $("#badge-rec-google");
     if (b) b.classList.remove("hidden");

@@ -93,18 +93,20 @@ def test_match_and_merge_hanya_isi_kosong_tidak_replace(db: Session):
 
 def test_match_and_merge_tidak_buat_lead_baru(db: Session):
     """Hasil enrichment yang tidak cocok hanya dilaporkan, tidak jadi lead baru."""
-    _seed_lead(db, "PT Maju Jaya", "umkm", "salatiga")
+    _seed_lead(db, "Sekolah Maju Jaya", "sekolah", "salatiga")
 
     stats = enrich.match_and_merge(
         db,
-        source="jobstreet",
-        raw_items=[{"nama_instansi": "Perusahaan Tidak Ada", "kota": "salatiga",
-                    "posisi_rekrutmen": "Backend Dev"}],
-        category="umkm", city="salatiga",
+        source="dapodik",
+        raw_items=[{"nama_instansi": "Sekolah Tidak Ada", "kota": "salatiga",
+                    "npsn": "12345678"}],
+        category="sekolah", city="salatiga",
     )
     assert stats["matched"] == 0
     assert len(stats["unmatched"]) == 1
-    assert db.query(Lead).count() == 1  # tetap 1, tidak ada lead "Perusahaan Tidak Ada"
+    assert db.query(Lead).count() == 1  # tetap 1, tidak ada lead "Sekolah Tidak Ada"
+
+
 def test_list_categories_with_cities_distink_dan_filter_seed(db: Session):
     """Opsi dropdown Enrichment = nilai DISTINCT (Kategori→Kota) dari data seed gmaps."""
     _seed_lead(db, "Sekolah A", "sekolah", "salatiga")
@@ -114,7 +116,7 @@ def test_list_categories_with_cities_distink_dan_filter_seed(db: Session):
     # Lead non-seed (enrichment) TIDAK boleh menjadi opsi seed
     cat = db.query(Category).filter(Category.name == "corporate").first()
     ct = db.query(City).filter(City.name == "jakarta").first()
-    db.add(Lead(source="jobstreet", nama_instansi="PT X (job)", category_id=cat.id, city_id=ct.id))
+    db.add(Lead(source="dapodik", nama_instansi="PT X (job)", category_id=cat.id, city_id=ct.id))
     db.commit()
 
     by_cat = store.list_categories_with_cities(db, source="gmaps")

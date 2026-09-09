@@ -17,7 +17,7 @@ class Lead(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     kode = Column(String(50), unique=True, nullable=True, index=True)
-    source = Column(Enum("gmaps", "dapodik", "lpse", "jobstreet", "glints", name="source_enum"), nullable=False)
+    source = Column(Enum("gmaps", "dapodik", name="source_enum"), nullable=False)
     priority = Column(Enum("high", "medium", name="priority_enum"), nullable=False, default="medium")
 
     # Base fields (sesuai tabel default)

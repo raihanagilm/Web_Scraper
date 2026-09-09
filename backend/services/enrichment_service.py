@@ -2,17 +2,15 @@
 
 Prinsip (Seed → Enrichment → Merge):
 - Google Maps = sumber utama (seed) yang menghasilkan daftar leads dasar.
-- Sumber pendukung (Dapodik / Jobstreet / Glints / LPSE Daerah) HANYA dipakai
+- Sumber pendukung (Dapodik / Google Search) HANYA dipakai
   sebagai enrichment: mencocokkan hasil scrape ke lead seed yang field
   pendukungnya masih kosong, lalu mengisi field kosong itu (merge field-level).
 - Enrichment TIDAK membuat lead baru; hasil yang gagal match dilaporkan
   (dilog di job) untuk review manual, bukan otomatis disimpan.
 
 Mapping kategori ke sumber enrichment (PRD v1.1):
-- Sekolah → Dapodik Kemdikbud (NPSN, Nama Kepsek)
-- Perusahaan/Corporate → Jobstreet/Glints (Posisi Rekrutmen, Deskripsi IT)
-- UMKM/Retail/Resto/Kafe → Jobstreet/Glints (Posisi Rekrutmen, Deskripsi IT)
-- Vendor B2G/Kontraktor → LPSE Daerah (Penanggung Jawab)
+- Sekolah → Dapodik Kemendikbud (NPSN, Nama Kepsek, Email) & Google Search
+- Entitas Lainnya → Google Search (Kontak umum: Telp/WA, Email, Web, IG, FB, LI, X, TikTok)
 """
 import difflib
 from datetime import datetime
@@ -27,25 +25,22 @@ from backend.services.cleaner import normalize_name, normalize_website
 ENRICHMENT_FIELDS: dict[str, list[str]] = {
     "google": ["telp", "email", "website", "sosmed", "instagram", "facebook", "linkedin", "twitter_x", "tiktok"],            # Web Search (Kontak umum: WA/Telp, Email, Web, IG, FB, LI, X, TikTok)
     "dapodik": ["npsn", "nama_kepsek", "email", "link_source"],  # Sekolah (NPSN, Kepsek, Email, & Link Kemendikdasmen)
-    "jobstreet": ["link_source"],                                 # Lowongan kerja
-    "glints": ["link_source"],                                    # Lowongan kerja
-    "lpse": ["link_source"],                                      # Vendor B2G / Pengadaan
 }
 
 # Mapping kategori ke sumber enrichment (PRD v1.1 §5.3)
 CATEGORY_ENRICHMENT_SOURCES: dict[str, list[str]] = {
-    "sekolah": ["dapodik"],
-    "corporate": ["jobstreet", "glints"],
-    "perusahaan": ["jobstreet", "glints"],
-    "umkm": ["jobstreet", "glints"],
-    "retail": ["jobstreet", "glints"],
-    "resto": ["jobstreet", "glints"],
-    "restoran": ["jobstreet", "glints"],
-    "kafe": ["jobstreet", "glints"],
-    "cafe": ["jobstreet", "glints"],
-    "vendor": ["lpse"],
-    "kontraktor": ["lpse"],
-    "b2g": ["lpse"],
+    "sekolah": ["dapodik", "google"],
+    "corporate": ["google"],
+    "perusahaan": ["google"],
+    "umkm": ["google"],
+    "retail": ["google"],
+    "resto": ["google"],
+    "restoran": ["google"],
+    "kafe": ["google"],
+    "cafe": ["google"],
+    "vendor": ["google"],
+    "kontraktor": ["google"],
+    "b2g": ["google"],
 }
 
 # Source yang berperan sebagai seed (target enrichment). PRD v1.1: GMaps = seed semua segmen.
@@ -69,7 +64,7 @@ def get_enrichment_sources_for_category(category: str) -> list[str]:
     for key, sources in CATEGORY_ENRICHMENT_SOURCES.items():
         if key in cat or cat in key:
             return sources
-    return []
+    return ["google"]
 
 # Threshold kemiripan nama (fuzzy) untuk match di kota yang sama
 MATCH_THRESHOLD = 0.75
