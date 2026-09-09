@@ -1,8 +1,16 @@
 import re
+import urllib.parse
 from sqlalchemy.orm import Session
 
 from backend.models import Lead, MergeHistory
-from backend.services.cleaner import normalize_emails, normalize_name, normalize_phone, normalize_website
+from backend.services.cleaner import (
+    clean_social_url,
+    is_valid_website,
+    normalize_emails,
+    normalize_name,
+    normalize_phone,
+    normalize_website,
+)
 
 FIELDS_TO_COMPARE = [
     "kode", "nama_instansi", "kategori", "telp", "email", "alamat", "kota",
@@ -12,7 +20,7 @@ FIELDS_TO_COMPARE = [
 
 
 def _lead_fingerprints(lead: Lead) -> list[tuple[str, str]]:
-    """Kumpulkan list of (key, val) fingerprint dari 1 lead (mendukung multi-email)."""
+    """Kumpulkan list of (key, val) fingerprint dari 1 lead (mendukung multi-email & medsos valid)."""
     fps: list[tuple[str, str]] = []
     norm_name = normalize_name(lead.nama_instansi)
     city = (lead.kota or "").strip().lower()
@@ -22,31 +30,60 @@ def _lead_fingerprints(lead: Lead) -> list[tuple[str, str]]:
         fps.append(("npsn", lead.npsn.strip()))
     if lead.telp:
         fps.append(("phone", normalize_phone(lead.telp)))
+    SHARED_DOMAINS = {
+        "linktr.ee", "campsite.bio", "bio.link", "beacons.ai", "bit.ly", "lynk.id",
+        "s.id", "wa.me", "heylink.me", "sites.google.com", "blogspot.com", "wordpress.com",
+    }
     if lead.website:
-        fps.append(("domain", normalize_website(lead.website)))
+        clean_w = normalize_website(lead.website)
+        if clean_w and is_valid_website(lead.website):
+            if clean_w in SHARED_DOMAINS:
+                u_web = lead.website if "://" in lead.website else f"https://{lead.website}"
+                try:
+                    p_w = urllib.parse.urlsplit(u_web)
+                    slug = [s for s in (p_w.path or "").strip().split("/") if s.strip()]
+                    if slug and len(slug[0]) >= 2:
+                        fps.append(("website", f"{clean_w}/{slug[0].lower()}"))
+                except Exception:
+                    pass
+            else:
+                fps.append(("website", clean_w))
 
-    # Multi-email fingerprints
+    # Email
     if lead.email:
         for em in re.split(r"[\s,;]+", lead.email):
             em_clean = em.strip().lower()
             if em_clean and "@" in em_clean:
                 fps.append(("email", em_clean))
 
-    # Social media fingerprints
+    # Social media fingerprints (hanya jika memiliki identitas profil yang valid)
     if lead.instagram:
-        m_ig = re.search(r"instagram\.com/([A-Za-z0-9_.]+)", lead.instagram.lower())
-        if m_ig and m_ig.group(1) not in {"p", "reel", "explore"}:
-            fps.append(("instagram", m_ig.group(1)))
+        clean_ig = clean_social_url(lead.instagram, "instagram")
+        if clean_ig:
+            handle = clean_ig.rstrip("/").split("/")[-1].lower()
+            if handle:
+                fps.append(("instagram", handle))
 
     if lead.facebook:
-        m_fb = re.search(r"(?:facebook\.com|fb\.com)/([A-Za-z0-9_.\-]+)", lead.facebook.lower())
-        if m_fb and m_fb.group(1) not in {"sharer", "share", "policies"}:
-            fps.append(("facebook", m_fb.group(1)))
+        clean_fb = clean_social_url(lead.facebook, "facebook")
+        if clean_fb:
+            handle = clean_fb.rstrip("/").split("/")[-1].lower()
+            if handle:
+                fps.append(("facebook", handle))
+
+    if lead.tiktok:
+        clean_tt = clean_social_url(lead.tiktok, "tiktok")
+        if clean_tt:
+            handle = clean_tt.rstrip("/").split("/")[-1].lower().lstrip("@")
+            if handle:
+                fps.append(("tiktok", handle))
 
     if lead.linkedin:
-        m_li = re.search(r"linkedin\.com/(?:company|school)/([A-Za-z0-9_.\-]+)", lead.linkedin.lower())
-        if m_li:
-            fps.append(("linkedin", m_li.group(1)))
+        clean_li = clean_social_url(lead.linkedin, "linkedin")
+        if clean_li:
+            handle = clean_li.rstrip("/").split("/")[-1].lower()
+            if handle:
+                fps.append(("linkedin", handle))
 
     return fps
 
@@ -63,9 +100,11 @@ def _score_pair(lead_a: Lead, lead_b: Lead) -> tuple[int, list[str]]:
         "npsn": "NPSN sama",
         "phone": "telepon sama",
         "email": "email sama",
+        "website": "website sama",
         "domain": "website sama",
         "instagram": "Instagram sama",
         "facebook": "Facebook sama",
+        "tiktok": "TikTok sama",
         "linkedin": "LinkedIn sama",
     }
     for key, _val in matched:
@@ -129,6 +168,7 @@ def find_duplicate_groups(db: Session, min_score: int = 1) -> list[dict]:
                 "name_city": "nama_instansi",
                 "instagram": "instagram",
                 "facebook": "facebook",
+                "tiktok": "tiktok",
                 "linkedin": "linkedin",
             }.get(fp_key, fp_key)
             groups[key] = {

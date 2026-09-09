@@ -1197,8 +1197,8 @@ const EDITABLE_FIELDS = [
 // ---- SVG Icons (Lucide / Feather style — profesional, bukan emoji keyboard) ----
 const PENCIL_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>`;
 const TRASH_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="m19 6-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>`;
-const GMAPS_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`;
 const CLOSE_SVG = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+const CHECK_SVG = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>`;
 const GLOBE_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`;
 const PHONE_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
 const INSTAGRAM_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>`;
@@ -1859,7 +1859,27 @@ function bindDedupEvents() {
     btn.addEventListener("click", () => resolveGroup(btn))
   );
 
-  // Tombol quick clear field (hapus nilai pemicu duplikat secara instan)
+  // Tombol keep field (pertahankan data ini dan bersihkan dari member lain di grup)
+  document.querySelectorAll("[data-qkeep]").forEach((btn) => {
+    btn.setAttribute("tabindex", "0");
+    btn.setAttribute("role", "button");
+    const doKeep = () => {
+      const id = parseInt(btn.dataset.qkeep, 10);
+      const field = btn.dataset.qfield;
+      const label = btn.dataset.qlabel || field;
+      const gkey = btn.dataset.gkey;
+      keepSingleLeadFieldInGroup(id, gkey, field, label, btn);
+    };
+    btn.addEventListener("click", doKeep);
+    btn.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        doKeep();
+      }
+    });
+  });
+
+  // Tombol quick clear field (hapus nilai pemicu duplikat dari baris ini)
   document.querySelectorAll("[data-qclear]").forEach((btn) => {
     btn.setAttribute("tabindex", "0");
     btn.setAttribute("role", "button");
@@ -1867,7 +1887,7 @@ function bindDedupEvents() {
       const id = parseInt(btn.dataset.qclear, 10);
       const field = btn.dataset.qfield;
       const label = btn.dataset.qlabel || field;
-      const chipEl = btn.closest(".dup-field-item");
+      const chipEl = btn.closest(".dup-field-chip");
       quickClearLeadField(id, field, label, chipEl);
     };
     btn.addEventListener("click", doClear);
@@ -1953,7 +1973,7 @@ function formatGmapsTruncated(url, maxLen = 75) {
   return `<a href="${esc(full)}" target="_blank" rel="noopener noreferrer" class="link-gmaps-truncated" title="${esc(full)}">[${esc(prefix)}].................</a>`;
 }
 
-function renderDupItemBadge(leadId, fieldName, fieldLabel, val, isTrigger) {
+function renderDupItemBadge(leadId, fieldName, fieldLabel, val, isTrigger, groupKey = "") {
   if (!val) return "";
   let icon = "";
   if (fieldName === "website") icon = GLOBE_SVG;
@@ -1968,9 +1988,12 @@ function renderDupItemBadge(leadId, fieldName, fieldLabel, val, isTrigger) {
   else if (fieldName === "npsn") icon = ID_CARD_SVG;
 
   const cls = isTrigger ? "dup-field-chip is-duplicate" : "dup-field-chip";
-  const clearBtn = isTrigger
-    ? `<button type="button" class="btn-chip-clear" data-qclear="${leadId}" data-qfield="${fieldName}" data-qlabel="${fieldLabel}" title="Kosongkan ${fieldLabel} dari baris ini agar tidak terduplikasi">${CLOSE_SVG} <span>Hapus ${fieldLabel}</span></button>`
-    : `<button type="button" class="btn-chip-clear-mini" data-qclear="${leadId}" data-qfield="${fieldName}" data-qlabel="${fieldLabel}" title="Kosongkan ${fieldLabel}">${CLOSE_SVG}</button>`;
+  const actionsHtml = isTrigger
+    ? `<div class="dup-chip-actions">
+        <button type="button" class="btn-chip-keep" data-qkeep="${leadId}" data-qfield="${fieldName}" data-qlabel="${fieldLabel}" data-gkey="${esc(groupKey)}" title="Pertahankan data ini (benar) dan kosongkan dari instansi lain di grup" aria-label="Pertahankan ${fieldLabel}">${CHECK_SVG}</button>
+        <button type="button" class="btn-chip-clear" data-qclear="${leadId}" data-qfield="${fieldName}" data-qlabel="${fieldLabel}" title="Kosongkan ${fieldLabel} dari baris ini" aria-label="Kosongkan ${fieldLabel} dari baris ini">${CLOSE_SVG}</button>
+      </div>`
+    : `<button type="button" class="btn-chip-clear-mini" data-qclear="${leadId}" data-qfield="${fieldName}" data-qlabel="${fieldLabel}" title="Kosongkan ${fieldLabel}" aria-label="Kosongkan ${fieldLabel}">${CLOSE_SVG}</button>`;
 
   let displayVal = esc(val);
   if (["website", "sosmed", "instagram", "tiktok", "facebook", "linkedin", "twitter_x"].includes(fieldName)) {
@@ -1982,7 +2005,7 @@ function renderDupItemBadge(leadId, fieldName, fieldLabel, val, isTrigger) {
       <span class="dup-chip-icon" aria-hidden="true">${icon}</span>
       <span class="dup-chip-label">${esc(fieldLabel)}:</span>
       <span class="dup-chip-val" title="${esc(val)}">${displayVal}</span>
-      ${clearBtn}
+      ${actionsHtml}
     </div>`;
 }
 
@@ -1995,16 +2018,16 @@ function renderDedupRows(g) {
     .map((m, i) => {
       // Kumpulkan badge field yang terisi
       const badges = [];
-      if (m.website) badges.push(renderDupItemBadge(m.id, "website", "Web", m.website, triggerField === "website"));
-      if (m.instagram) badges.push(renderDupItemBadge(m.id, "instagram", "Instagram", m.instagram, triggerField === "instagram"));
-      if (m.tiktok) badges.push(renderDupItemBadge(m.id, "tiktok", "TikTok", m.tiktok, triggerField === "tiktok"));
-      if (m.facebook) badges.push(renderDupItemBadge(m.id, "facebook", "Facebook", m.facebook, triggerField === "facebook"));
-      if (m.linkedin) badges.push(renderDupItemBadge(m.id, "linkedin", "LinkedIn", m.linkedin, triggerField === "linkedin"));
-      if (m.twitter_x) badges.push(renderDupItemBadge(m.id, "twitter_x", "Twitter/X", m.twitter_x, triggerField === "twitter_x"));
-      if (m.sosmed) badges.push(renderDupItemBadge(m.id, "sosmed", "Medsos", m.sosmed, triggerField === "sosmed"));
-      if (m.telp) badges.push(renderDupItemBadge(m.id, "telp", "Telp", m.telp, triggerField === "telp"));
-      if (m.email) badges.push(renderDupItemBadge(m.id, "email", "Email", m.email, triggerField === "email"));
-      if (m.npsn) badges.push(renderDupItemBadge(m.id, "npsn", "NPSN", m.npsn, triggerField === "npsn"));
+      if (m.website) badges.push(renderDupItemBadge(m.id, "website", "Web", m.website, triggerField === "website", g.key));
+      if (m.instagram) badges.push(renderDupItemBadge(m.id, "instagram", "Instagram", m.instagram, triggerField === "instagram", g.key));
+      if (m.tiktok) badges.push(renderDupItemBadge(m.id, "tiktok", "TikTok", m.tiktok, triggerField === "tiktok", g.key));
+      if (m.facebook) badges.push(renderDupItemBadge(m.id, "facebook", "Facebook", m.facebook, triggerField === "facebook", g.key));
+      if (m.linkedin) badges.push(renderDupItemBadge(m.id, "linkedin", "LinkedIn", m.linkedin, triggerField === "linkedin", g.key));
+      if (m.twitter_x) badges.push(renderDupItemBadge(m.id, "twitter_x", "Twitter/X", m.twitter_x, triggerField === "twitter_x", g.key));
+      if (m.sosmed) badges.push(renderDupItemBadge(m.id, "sosmed", "Medsos", m.sosmed, triggerField === "sosmed", g.key));
+      if (m.telp) badges.push(renderDupItemBadge(m.id, "telp", "Telp", m.telp, triggerField === "telp", g.key));
+      if (m.email) badges.push(renderDupItemBadge(m.id, "email", "Email", m.email, triggerField === "email", g.key));
+      if (m.npsn) badges.push(renderDupItemBadge(m.id, "npsn", "NPSN", m.npsn, triggerField === "npsn", g.key));
 
       const dupContent = badges.length
         ? `<div class="dup-items-box">${badges.join("")}</div>`
@@ -2046,7 +2069,27 @@ function renderDedupGroupBody(card, g) {
     if (arrow) arrow.innerHTML = active ? (sort.dir === "asc" ? ICONS.sortAsc : ICONS.sortDesc) : "";
   });
 
-  // Rebind tombol di card ini
+  // Rebind tombol keep di card ini
+  card.querySelectorAll("[data-qkeep]").forEach((btn) => {
+    btn.setAttribute("tabindex", "0");
+    btn.setAttribute("role", "button");
+    const doKeep = () => {
+      const id = parseInt(btn.dataset.qkeep, 10);
+      const field = btn.dataset.qfield;
+      const label = btn.dataset.qlabel || field;
+      const gkey = btn.dataset.gkey;
+      keepSingleLeadFieldInGroup(id, gkey, field, label, btn);
+    };
+    btn.addEventListener("click", doKeep);
+    btn.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        doKeep();
+      }
+    });
+  });
+
+  // Rebind tombol quick clear di card ini
   card.querySelectorAll("[data-qclear]").forEach((btn) => {
     btn.setAttribute("tabindex", "0");
     btn.setAttribute("role", "button");
@@ -2054,7 +2097,7 @@ function renderDedupGroupBody(card, g) {
       const id = parseInt(btn.dataset.qclear, 10);
       const field = btn.dataset.qfield;
       const label = btn.dataset.qlabel || field;
-      const chipEl = btn.closest(".dup-field-item");
+      const chipEl = btn.closest(".dup-field-chip");
       quickClearLeadField(id, field, label, chipEl);
     };
     btn.addEventListener("click", doClear);
@@ -2086,6 +2129,11 @@ function formatGroupTitle(g) {
   const trigger = g.trigger_field || "";
   const val = g.trigger_value ? ` (${g.trigger_value})` : "";
   if (trigger === "website") return `Grup Website Sama${val}`;
+  if (trigger === "instagram") return `Grup Instagram Sama${val}`;
+  if (trigger === "facebook") return `Grup Facebook Sama${val}`;
+  if (trigger === "linkedin") return `Grup LinkedIn Sama${val}`;
+  if (trigger === "twitter_x") return `Grup Twitter/X Sama${val}`;
+  if (trigger === "tiktok") return `Grup TikTok Sama${val}`;
   if (trigger === "telp") return `Grup No. Telepon Sama${val}`;
   if (trigger === "email") return `Grup Email Sama${val}`;
   if (trigger === "npsn") return `Grup NPSN Sama${val}`;
@@ -2109,6 +2157,46 @@ function renderGroup(g) {
         </div>
       </div>
     </div>`;
+}
+
+async function keepSingleLeadFieldInGroup(leadId, groupKey, fieldName, fieldLabel, keepBtn) {
+  const g = dedupGroups.find((x) => x.key === groupKey);
+  const targetLead = (g?.member_data || []).find((m) => m.id === leadId);
+  const leadName = targetLead?.nama_instansi || `Lead #${leadId}`;
+
+  // Member lain dalam grup yang akan dikosongkan nilainya
+  const otherMembers = (g?.member_data || []).filter((m) => m.id !== leadId);
+  const otherCount = otherMembers.length;
+
+  const ok = await confirmDialog(
+    `Pertahankan ${fieldLabel} pada "${leadName}" dan kosongkan ${fieldLabel} pada ${otherCount} instansi lainnya di grup ini agar tidak ada lagi duplikasi?`,
+    false
+  );
+  if (!ok) return;
+
+  const chipEl = keepBtn?.closest(".dup-field-chip");
+  if (chipEl) {
+    chipEl.classList.add("chip-loading");
+  }
+
+  try {
+    // Kosongkan nilai field terkait di semua instansi lain dalam grup
+    await Promise.all(
+      otherMembers.map((m) =>
+        api(`/api/leads/${m.id}`, {
+          method: "PATCH",
+          body: { [fieldName]: "" },
+        })
+      )
+    );
+    await loadDedup();
+  } catch (err) {
+    alert("Gagal memperbarui data: " + err.message);
+  } finally {
+    if (chipEl) {
+      chipEl.classList.remove("chip-loading");
+    }
+  }
 }
 
 async function quickClearLeadField(leadId, fieldName, fieldLabel, chipEl = null) {

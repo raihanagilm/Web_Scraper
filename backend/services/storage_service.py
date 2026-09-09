@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.models import Category, City, Lead, ScrapeJob
-from backend.services.cleaner import clean_lead
+from backend.services.cleaner import clean_lead, clean_social_url, is_valid_website
 from backend.services.code_generator import (
     generate_category_code,
     generate_city_code,
@@ -247,6 +247,45 @@ def update_lead_full(db: Session, lead_id: int, data: dict) -> Lead | None:
     lead = get_lead(db, lead_id)
     if not lead:
         return None
+
+    # Sanitasi link medsos jika diubah
+    for soc in ("instagram", "facebook", "linkedin", "twitter_x", "tiktok"):
+        if soc in data:
+            val = str(data[soc] or "").strip()
+            data[soc] = clean_social_url(val, soc) if val else ""
+
+    # Sanitasi & auto-sortir website jika diubah
+    if "website" in data:
+        w_val = str(data["website"] or "").strip()
+        if w_val and not is_valid_website(w_val):
+            w_low = w_val.lower()
+            if "instagram.com" in w_low or "instagr.am" in w_low:
+                c_ig = clean_social_url(w_val, "instagram")
+                if c_ig and not data.get("instagram"):
+                    data["instagram"] = c_ig
+                data["website"] = ""
+            elif "facebook.com" in w_low or "fb.com" in w_low:
+                c_fb = clean_social_url(w_val, "facebook")
+                if c_fb and not data.get("facebook"):
+                    data["facebook"] = c_fb
+                data["website"] = ""
+            elif "tiktok.com" in w_low:
+                c_tt = clean_social_url(w_val, "tiktok")
+                if c_tt and not data.get("tiktok"):
+                    data["tiktok"] = c_tt
+                data["website"] = ""
+            elif "linkedin.com" in w_low:
+                c_li = clean_social_url(w_val, "linkedin")
+                if c_li and not data.get("linkedin"):
+                    data["linkedin"] = c_li
+                data["website"] = ""
+            elif "twitter.com" in w_low or "x.com" in w_low:
+                c_tw = clean_social_url(w_val, "twitter_x")
+                if c_tw and not data.get("twitter_x"):
+                    data["twitter_x"] = c_tw
+                data["website"] = ""
+            else:
+                data["website"] = ""
 
     for f in LEAD_FIELDS:
         if f in FK_FIELDS:

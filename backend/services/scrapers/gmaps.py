@@ -17,7 +17,7 @@ import uuid
 from playwright.sync_api import sync_playwright
 
 from backend.services.scrapers.base import BaseScraper
-from backend.services.cleaner import normalize_phone
+from backend.services.cleaner import normalize_phone, clean_social_url, is_valid_website
 from backend.services.browser_profile import (
     launch_login_browser_context,
     get_login_profile_dir,
@@ -212,33 +212,29 @@ class GmapsScraper(BaseScraper):
                           "playwright", "schema.org", "wa.me", "whatsapp"]
             for w in web_matches:
                 clean_w = w.split('&')[0].rstrip('.,;)')
-                if not any(ex in clean_w.lower() for ex in exclusions):
+                if is_valid_website(clean_w) and not any(ex in clean_w.lower() for ex in exclusions):
                     website = clean_w
                     break
         instagram = self._find_instagram(page, unquoted)
         facebook = ""
-        fb_match = re.search(r'https?://(?:www\.)?(?:facebook\.com|fb\.com)/[A-Za-z0-9_.\-]+', unquoted)
+        fb_match = re.search(r'https?://(?:www\.)?(?:facebook\.com|fb\.com)/[^\s"\'<>]+', unquoted)
         if fb_match:
-            cand_fb = fb_match.group(0).rstrip('.,;)')
-            if not any(b in cand_fb.lower() for b in ["sharer", "share", "policies", "help", "login"]):
-                facebook = cand_fb
+            facebook = clean_social_url(fb_match.group(0), "facebook")
 
         linkedin = ""
-        li_match = re.search(r'https?://(?:www\.)?linkedin\.com/(?:company|school)/[A-Za-z0-9_.\-]+', unquoted)
+        li_match = re.search(r'https?://(?:www\.)?linkedin\.com/(?:company|school)/[^\s"\'<>]+', unquoted)
         if li_match:
-            linkedin = li_match.group(0).rstrip('.,;)')
+            linkedin = clean_social_url(li_match.group(0), "linkedin")
 
         twitter_x = ""
-        tw_match = re.search(r'https?://(?:www\.)?(?:twitter\.com|x\.com)/[A-Za-z0-9_]+', unquoted)
+        tw_match = re.search(r'https?://(?:www\.)?(?:twitter\.com|x\.com)/[^\s"\'<>]+', unquoted)
         if tw_match:
-            cand_tw = tw_match.group(0).rstrip('.,;)')
-            if not any(b in cand_tw.lower() for b in ["intent", "share", "home", "search"]):
-                twitter_x = cand_tw
+            twitter_x = clean_social_url(tw_match.group(0), "twitter_x")
 
         tiktok = ""
-        tt_match = re.search(r'https?://(?:www\.)?tiktok\.com/@[A-Za-z0-9_.\-]+', unquoted)
+        tt_match = re.search(r'https?://(?:www\.)?tiktok\.com/@[^\s"\'<>]+', unquoted)
         if tt_match:
-            tiktok = tt_match.group(0).rstrip('.,;)')
+            tiktok = clean_social_url(tt_match.group(0), "tiktok")
 
         if not kemendikdasmen_link:
             kem = re.search(r'(https?://[a-zA-Z0-9.\-]*kemendikdasmen\.go\.id/[^\s"\'<>\\&]+)', unquoted)
@@ -271,13 +267,7 @@ class GmapsScraper(BaseScraper):
     # ---- Ekstraksi Instagram (akurat, ala file lama tapi diperketat) ----
     def _clean_ig_url(self, url: str) -> str:
         """Normalisasi & validasi URL IG → hanya URL profil yang valid."""
-        u = (url or "").split("&")[0].split("?")[0].rstrip(".,;)'\"")
-        m = IG_PROFILE_RE.match(u)
-        if not m:
-            return ""
-        if m.group(1).lower() in IG_BLOCKED_SEGMENTS:
-            return ""
-        return f"https://www.instagram.com/{m.group(1)}/"
+        return clean_social_url(url, "instagram")
 
     def _find_instagram(self, page, unquoted_html: str) -> str:
         """Cari IG milik bisnis: prioritas link yang tampil di panel detail,

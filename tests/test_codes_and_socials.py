@@ -149,3 +149,53 @@ def test_dapodik_does_not_extract_operator_as_kepsek():
     assert res["nama_kepsek"] == ""  # Operator TIDAK boleh masuk sebagai nama_kepsek!
 
 
+def test_clean_social_url_rejects_generic_links():
+    # Generic homepages or blocked system paths must return empty string
+    assert clean_social_url("https://www.instagram.com/") == ""
+    assert clean_social_url("https://instagram.com") == ""
+    assert clean_social_url("https://www.facebook.com/profile.php/") == ""
+    assert clean_social_url("https://www.facebook.com/profile.php") == ""
+    assert clean_social_url("https://www.facebook.com/groups/") == ""
+    assert clean_social_url("https://www.facebook.com/people/") == ""
+    assert clean_social_url("https://www.facebook.com/sharer/sharer.php?u=foo") == ""
+    assert clean_social_url("https://www.tiktok.com/@") == ""
+    assert clean_social_url("https://twitter.com/") == ""
+
+    # Valid profile.php with ID and valid handles must be accepted
+    assert clean_social_url("https://www.facebook.com/profile.php?id=100084929268611") == "https://www.facebook.com/profile.php?id=100084929268611"
+    assert clean_social_url("https://www.facebook.com/smkn1salatiga/") == "https://www.facebook.com/smkn1salatiga"
+
+
+def test_clean_lead_relocates_social_and_cleans_junk_website():
+    raw = {
+        "nama_instansi": "Kafe Keren",
+        "website": "http://www.instagram.com/kafekeren",
+        "instagram": "",
+    }
+    cleaned = clean_lead(raw)
+    assert cleaned["instagram"] == "https://www.instagram.com/kafekeren"
+    assert cleaned["website"] == ""
+
+    raw_junk = {
+        "nama_instansi": "Toko Mainan",
+        "website": "https://lh3.googleusercontent.com/p/AF1Qip...",
+    }
+    cleaned_junk = clean_lead(raw_junk)
+    assert cleaned_junk["website"] == ""
+
+
+def test_dedup_biolink_shared_domain_disambiguation():
+    lead_a = Lead(nama_instansi="Kafe A", kota="Salatiga", website="https://linktr.ee/kafeA")
+    lead_b = Lead(nama_instansi="Kafe B", kota="Salatiga", website="https://linktr.ee/kafeB")
+    lead_c = Lead(nama_instansi="Kafe C", kota="Salatiga", website="https://linktr.ee/kafeA")
+
+    fp_a = dict(_lead_fingerprints(lead_a))
+    fp_b = dict(_lead_fingerprints(lead_b))
+    fp_c = dict(_lead_fingerprints(lead_c))
+
+    assert fp_a.get("website") == "linktr.ee/kafea"
+    assert fp_b.get("website") == "linktr.ee/kafeb"
+    assert fp_a.get("website") != fp_b.get("website")  # Beda kafe -> tidak dianggap sama!
+    assert fp_a.get("website") == fp_c.get("website")  # Linktree sama -> terindikasi duplikat!
+
+

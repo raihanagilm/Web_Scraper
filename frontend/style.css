@@ -904,18 +904,48 @@ th.col-check, td.col-check { text-align: center; }
   text-decoration: underline;
   word-break: break-all;
 }
+.dup-chip-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+.btn-chip-keep {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 4px;
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  color: #15803d;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+.btn-chip-keep:hover {
+  background: #16a34a;
+  color: #ffffff;
+  border-color: #15803d;
+}
+.btn-chip-keep:focus-visible {
+  outline: 2px solid #16a34a;
+  outline-offset: 1px;
+}
 .btn-chip-clear {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 4px;
   background: #fee2e2;
   border: 1px solid #fca5a5;
   color: #991b1b;
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 4px;
   cursor: pointer;
   transition: all 0.15s ease;
   line-height: 1;
@@ -925,6 +955,10 @@ th.col-check, td.col-check { text-align: center; }
   background: #ef4444;
   color: #ffffff;
   border-color: #dc2626;
+}
+.btn-chip-clear:focus-visible {
+  outline: 2px solid #ef4444;
+  outline-offset: 1px;
 }
 .btn-chip-clear-mini {
   display: inline-flex;

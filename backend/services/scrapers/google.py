@@ -18,7 +18,7 @@ import httpx
 from playwright.sync_api import sync_playwright
 
 from backend.services.scrapers.base import BaseScraper
-from backend.services.cleaner import normalize_phone
+from backend.services.cleaner import normalize_phone, clean_social_url, is_valid_website
 from backend.services.browser_profile import launch_login_browser_context
 
 # Domain yang dikecualikan dari deteksi website resmi instansi
@@ -184,48 +184,49 @@ class GoogleScraper(BaseScraper):
 
                             # Ekstrak IG
                             if not instagram and "instagram.com" in href.lower():
-                                m_ig = IG_RE.search(href)
-                                if m_ig and m_ig.group(1).lower() not in IG_BLOCKED:
-                                    instagram = f"https://www.instagram.com/{m_ig.group(1)}/"
+                                c_ig = clean_social_url(href, "instagram")
+                                if c_ig:
+                                    instagram = c_ig
                                     continue
 
                             # Ekstrak Facebook
                             if not facebook and ("facebook.com" in href.lower() or "fb.com" in href.lower()):
-                                fb_m = re.search(r'https?://(?:www\.)?(?:facebook\.com|fb\.com)/[A-Za-z0-9_.\-]+', href)
-                                if fb_m and not any(b in href.lower() for b in ["sharer", "share", "policies", "help", "login"]):
-                                    facebook = fb_m.group(0).rstrip(".,;)'\"/") + "/"
+                                c_fb = clean_social_url(href, "facebook")
+                                if c_fb:
+                                    facebook = c_fb
                                     continue
 
                             # Ekstrak LinkedIn
                             if not linkedin and "linkedin.com" in href.lower():
-                                li_m = re.search(r'https?://(?:www\.)?linkedin\.com/(?:company|school)/[A-Za-z0-9_.\-]+', href)
-                                if li_m:
-                                    linkedin = li_m.group(0).rstrip(".,;)'\"/") + "/"
+                                c_li = clean_social_url(href, "linkedin")
+                                if c_li:
+                                    linkedin = c_li
                                     continue
 
                             # Ekstrak Twitter/X
                             if not twitter_x and ("twitter.com" in href.lower() or "x.com" in href.lower()):
-                                tw_m = re.search(r'https?://(?:www\.)?(?:twitter\.com|x\.com)/[A-Za-z0-9_]+', href)
-                                if tw_m and not any(b in href.lower() for b in ["intent", "share", "home", "search"]):
-                                    twitter_x = tw_m.group(0).rstrip(".,;)'\"/") + "/"
+                                c_tw = clean_social_url(href, "twitter_x")
+                                if c_tw:
+                                    twitter_x = c_tw
                                     continue
 
                             # Ekstrak TikTok
                             if not tiktok and "tiktok.com" in href.lower():
-                                tt_m = re.search(r'https?://(?:www\.)?tiktok\.com/@[A-Za-z0-9_.\-]+', href)
-                                if tt_m:
-                                    tiktok = tt_m.group(0).rstrip(".,;)'\"/")
+                                c_tt = clean_social_url(href, "tiktok")
+                                if c_tt:
+                                    tiktok = c_tt
                                     continue
 
                             # Ekstrak website resmi jika belum dapat
                             if not website:
-                                try:
-                                    parsed = urllib.parse.urlparse(href)
-                                    domain = parsed.netloc.lower()
-                                    if not any(ex in domain for ex in EXCLUDED_DOMAINS):
-                                        website = f"{parsed.scheme}://{parsed.netloc}"
-                                except Exception:
-                                    pass
+                                if is_valid_website(href):
+                                    try:
+                                        parsed = urllib.parse.urlparse(href)
+                                        domain = parsed.netloc.lower()
+                                        if not any(ex in domain for ex in EXCLUDED_DOMAINS):
+                                            website = f"{parsed.scheme}://{parsed.netloc}"
+                                    except Exception:
+                                        pass
 
                     except Exception as e:
                         self.emit_progress(i, len(self.targets), f"Pencarian '{target}' browser info: {e}")
@@ -327,33 +328,39 @@ class GoogleScraper(BaseScraper):
                             if not href.startswith("http"):
                                 href = "https://" + href
                             if not instagram and "instagram.com" in href.lower():
-                                m_ig = IG_RE.search(href)
-                                if m_ig and m_ig.group(1).lower() not in IG_BLOCKED:
-                                    instagram = f"https://www.instagram.com/{m_ig.group(1)}/"
+                                c_ig = clean_social_url(href, "instagram")
+                                if c_ig:
+                                    instagram = c_ig
                                     continue
                             if not facebook and ("facebook.com" in href.lower() or "fb.com" in href.lower()):
-                                fb_m = re.search(r'https?://(?:www\.)?(?:facebook\.com|fb\.com)/[A-Za-z0-9_.\-]+', href)
-                                if fb_m and not any(b in href.lower() for b in ["sharer", "share", "policies", "help"]):
-                                    facebook = fb_m.group(0).rstrip(".,;)'\"/") + "/"
+                                c_fb = clean_social_url(href, "facebook")
+                                if c_fb:
+                                    facebook = c_fb
                                     continue
                             if not linkedin and "linkedin.com" in href.lower():
-                                li_m = re.search(r'https?://(?:www\.)?linkedin\.com/(?:company|school)/[A-Za-z0-9_.\-]+', href)
-                                if li_m:
-                                    linkedin = li_m.group(0).rstrip(".,;)'\"/") + "/"
+                                c_li = clean_social_url(href, "linkedin")
+                                if c_li:
+                                    linkedin = c_li
                                     continue
                             if not twitter_x and ("twitter.com" in href.lower() or "x.com" in href.lower()):
-                                tw_m = re.search(r'https?://(?:www\.)?(?:twitter\.com|x\.com)/[A-Za-z0-9_]+', href)
-                                if tw_m and not any(b in href.lower() for b in ["intent", "share", "home"]):
-                                    twitter_x = tw_m.group(0).rstrip(".,;)'\"/") + "/"
+                                c_tw = clean_social_url(href, "twitter_x")
+                                if c_tw:
+                                    twitter_x = c_tw
+                                    continue
+                            if not tiktok and "tiktok.com" in href.lower():
+                                c_tt = clean_social_url(href, "tiktok")
+                                if c_tt:
+                                    tiktok = c_tt
                                     continue
                             if not website:
-                                try:
-                                    parsed = urllib.parse.urlparse(href)
-                                    domain = parsed.netloc.lower()
-                                    if not any(ex in domain for ex in EXCLUDED_DOMAINS):
-                                        website = f"{parsed.scheme}://{parsed.netloc}"
-                                except Exception:
-                                    pass
+                                if is_valid_website(href):
+                                    try:
+                                        parsed = urllib.parse.urlparse(href)
+                                        domain = parsed.netloc.lower()
+                                        if not any(ex in domain for ex in EXCLUDED_DOMAINS):
+                                            website = f"{parsed.scheme}://{parsed.netloc}"
+                                    except Exception:
+                                        pass
                 except Exception as e:
                     self.emit_progress(i, len(self.targets), f"Pencarian web '{target}' dilewati: {e}")
 

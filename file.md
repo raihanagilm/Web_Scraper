@@ -290,6 +290,7 @@ scraper_gmaps_sekolah.py
 .vscode/settings.json
 tools/add_seed_job_fk_to_scrape_jobs.py
 tools/check_docs_sync.py
+tools/clean_invalid_generic_links.py
 tools/drop_job_and_vendor_columns.py
 tools/drop_jobstreet_glints_lpse_sources.py
 tools/migrate_multi_social_and_codes.py
