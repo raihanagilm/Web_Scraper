@@ -45,7 +45,7 @@ def _scan_actual_files() -> set[str]:
     for root, dirs, files in os.walk(ROOT):
         dirs[:] = [d for d in dirs if d not in EXCLUDED_DIRS]
         for f in files:
-            if f.endswith(".pyc") or f in EXCLUDED_FILES:
+            if f.endswith(".pyc") or f in EXCLUDED_FILES or (f.startswith(".env") and f != ".env.example"):
                 continue
             p = Path(root).resolve().relative_to(ROOT).as_posix()
             rel = f"{p}/{f}" if p != "." else f
