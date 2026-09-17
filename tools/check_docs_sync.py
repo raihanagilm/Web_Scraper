@@ -30,7 +30,7 @@ DOCS = {
 # Direktori / pola yang TIDAK dilacak (dinamis / secret / tooling / asset)
 # `scratch` & `logs` = ruang kerja sementara/runtime (di-gitignore, lihat .gitignore bagian Logs)
 EXCLUDED_DIRS = {"venv", ".git", ".pytest_cache", "__pycache__", "node_modules",
-                 "exports", "uploads", "audio", "css", "js", "scratch", "logs"}
+                 "exports", "uploads", "audio", "css", "js", "scratch", "logs", ".kilo"}
 EXCLUDED_FILES = {".env"}
 # Ekstensi runtime/artefak yang tidak pernah jadi bagian dokumen (selaras .gitignore)
 EXCLUDED_SUFFIXES = (".pyc", ".log")

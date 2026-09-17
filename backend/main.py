@@ -1,8 +1,8 @@
-"""FastAPI application entry point."""
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -47,6 +47,63 @@ app.include_router(lead_router, prefix="/api", tags=["leads"])
 def health() -> dict:
     return {"status": "ok", "app": "Edtekno Lead Scraper"}
 
+
+# noVNC reverse proxy WebSocket & static mounting
+# Memungkinkan noVNC diakses langsung dari port utama (8000) dan via Cloudflare Tunnel
+@app.websocket("/websockify")
+@app.websocket("/novnc/websockify")
+async def novnc_websocket_proxy(websocket: WebSocket):
+    requested = websocket.headers.get("sec-websocket-protocol", "")
+    subprotocol = "binary" if "binary" in [p.strip() for p in requested.split(",")] else None
+    await websocket.accept(subprotocol=subprotocol)
+    try:
+        reader, writer = await asyncio.open_connection("127.0.0.1", 5900)
+    except Exception:
+        await websocket.close()
+        return
+
+    async def ws_to_tcp():
+        try:
+            while True:
+                msg = await websocket.receive()
+                if "bytes" in msg and msg["bytes"]:
+                    writer.write(msg["bytes"])
+                    await writer.drain()
+                elif "text" in msg and msg["text"]:
+                    writer.write(msg["text"].encode("latin1"))
+                    await writer.drain()
+                elif msg.get("type") == "websocket.disconnect":
+                    break
+        except Exception:
+            pass
+        finally:
+            try:
+                writer.close()
+            except Exception:
+                pass
+
+    async def tcp_to_ws():
+        try:
+            while True:
+                data = await reader.read(8192)
+                if not data:
+                    break
+                await websocket.send_bytes(data)
+        except Exception:
+            pass
+        finally:
+            try:
+                await websocket.close()
+            except Exception:
+                pass
+
+    await asyncio.gather(ws_to_tcp(), tcp_to_ws(), return_exceptions=True)
+
+
+# Serve noVNC static UI bila ada di container
+novnc_dir = Path("/usr/share/novnc")
+if novnc_dir.is_dir():
+    app.mount("/novnc", StaticFiles(directory=str(novnc_dir), html=True), name="novnc")
 
 # Serve audio sound-effects (dipasang sebelum mount "/" agar tidak ketutup)
 audio_dir = BASE_DIR / "audio"

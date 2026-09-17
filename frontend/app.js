@@ -1288,7 +1288,7 @@ function novncTargetUrl(info) {
   if (!info || !info.available) return "";
   if (info.url) return info.url;
   const proto = location.protocol === "https:" ? "https:" : "http:";
-  return `${proto}//${location.hostname}:${info.port || 8002}/vnc.html?autoconnect=1&resize=scale`;
+  return `${proto}//${location.host}/novnc/vnc.html?autoconnect=1&resize=scale&path=websockify`;
 }
 
 function renderMonitorButton(info) {

@@ -58,6 +58,9 @@ start_display_stack() {
     return 1
   fi
 
+  # Bersihkan socket/lock lama bila container pernah di-restart/crash
+  rm -f "/tmp/.X${DISPLAY_NUM#:}-lock" "/tmp/.X11-unix/X${DISPLAY_NUM#:}"
+
   Xvfb "$DISPLAY_NUM" -screen 0 "${SCREEN_WIDTH}x${SCREEN_HEIGHT}x${SCREEN_DEPTH}" -ac -nolisten tcp >/dev/null 2>&1 &
   if ! wait_for_x_socket; then
     log "Xvfb gagal siap (socket ${DISPLAY_NUM} tidak muncul) → fallback headless."

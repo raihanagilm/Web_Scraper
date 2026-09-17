@@ -30,7 +30,7 @@
 ├── .env.example                    # Template konfigurasi (salurannya ada di .env — JANGAN commit .env)
 ├── .gitignore
 ├── Dockerfile                      # Image container: FastAPI + Playwright Chromium + Xvfb/noVNC (deployment)
-├── docker-compose.yml              # Orkestrasi container: app 8001→8000 + noVNC 8002 (monitor browser), shm 1gb
+├── docker-compose.yml              # Orkestrasi container: app 8001→8000 + noVNC 8002 + cloudflared tunnel, shm 1gb
 ├── docker/
 │   └── entrypoint.sh               # Entrypoint container: nyalakan Xvfb + openbox + x11vnc + noVNC → exec uvicorn (fallback headless bila gagal)
 ├── .dockerignore                   # Pengecualian build context (secret .env, venv, scratch, dokumen)

@@ -49,5 +49,16 @@ services:
       # Profil browser persisten (login Google) agar tidak hilang saat restart
       - playwright_profile:/root/playwright_chrome_profile_gmaps
 
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared-tunnel
+    restart: unless-stopped
+    # Quick Tunnel gratis tanpa domain (otomatis generate URL https://xxxx.trycloudflare.com).
+    # Akses link-nya dengan perintah: docker logs cloudflared-tunnel
+    # (Bila nanti punya domain di Cloudflare, cukup gunakan: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN})
+    command: tunnel --no-autoupdate --url http://web-scraper:8000
+    depends_on:
+      - web-scraper
+
 volumes:
   playwright_profile:
