@@ -27,7 +27,19 @@ class Settings(BaseSettings):
     # Scraper defaults
     scraper_min_delay: float = 1.0
     scraper_max_delay: float = 3.0
+# Browser (Playwright / Chromium)
+    browser_headless: bool = False      # True saat jalan di Docker/CI (env BROWSER_HEADLESS)
+    browser_channel: str = "chrome"     # 'chrome'=system Google Chrome (lokal); kosong='' = bundled Chromium (Docker)
     scraper_default_max_results: int = 100
+
+    # Monitor browser (noVNC) — hanya aktif di container yang menjalankan
+    # docker/entrypoint.sh (Xvfb + x11vnc + noVNC, lihat file.md §2.7).
+    # Frontend membaca info ini dari /api/browser-status untuk menampilkan
+    # tombol "Lihat Browser (Monitor)".
+    novnc_enabled: bool = False          # NOVNC_ENABLED (di container = 1)
+    novnc_port: int = 8002               # NOVNC_PORT (port web noVNC)
+    novnc_public_url: str = ""           # NOVNC_PUBLIC_URL (opsional; mis. via Cloudflare tunnel)
+    novnc_password: str = ""             # NOVNC_PASSWORD (hanya untuk indikator "butuh password")
 
     # Job watchdog: job "running" tanpa progres selama sekian detik
     # dianggap mati/hang → reconcile menandainya "error" (lihat job_manager).
@@ -39,6 +51,16 @@ class Settings(BaseSettings):
             f"mysql+pymysql://{self.db_user}:{self.db_password}"
             f"@{self.db_host}:{self.db_port}/{self.db_name}"
         )
+
+    @property
+    def novnc_url(self) -> str:
+        """URL noVNC eksplisit bila diisi (NOVNC_PUBLIC_URL); kosong = frontend menyusun sendiri dari hostname+port."""
+        return self.novnc_public_url.strip()
+
+    @property
+    def novnc_available(self) -> bool:
+        """True bila monitor browser benar-benar bisa dipakai: noVNC aktif DAN browser headful."""
+        return self.novnc_enabled and not self.browser_headless
 
 
 settings = Settings()

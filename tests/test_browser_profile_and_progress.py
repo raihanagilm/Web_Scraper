@@ -35,6 +35,64 @@ def test_clone_login_profile():
         assert os.path.exists(dest)
 
 
+def test_needs_no_sandbox_container_root():
+    """Chromium di container (root) butuh --no-sandbox JUGA saat headful (noVNC)."""
+    from backend.services.browser_profile import needs_no_sandbox
+
+    with patch("backend.services.browser_profile.settings") as mock_settings, \
+         patch.dict(os.environ, {}, clear=True), \
+         patch("backend.services.browser_profile.is_container_runtime", return_value=True):
+        mock_settings.browser_headless = False
+        assert needs_no_sandbox(headless=False) is True  # container → no-sandbox
+
+
+def test_needs_no_sandbox_host_headful():
+    """Di mesin host (non-root, bukan container) headful tidak butuh --no-sandbox."""
+    from backend.services.browser_profile import needs_no_sandbox
+
+    with patch("backend.services.browser_profile.settings") as mock_settings, \
+         patch.dict(os.environ, {}, clear=True), \
+         patch("backend.services.browser_profile.os.geteuid", create=True, return_value=1000), \
+         patch("backend.services.browser_profile.is_container_runtime", return_value=False):
+        mock_settings.browser_headless = False
+        assert needs_no_sandbox(headless=False) is False
+
+
+def test_build_browser_args_headless_default_and_dedup():
+    """build_browser_args: default --start-maximized + penyesuaian container, tanpa duplikasi flag."""
+    from backend.services.browser_profile import build_browser_args, needs_no_sandbox
+
+    # Headless (mesin apa pun) → selalu butuh no-sandbox
+    assert "--no-sandbox" in build_browser_args(None, True)
+    assert "--disable-dev-shm-usage" in build_browser_args(None, True)
+
+    # User args tidak tertimpa & flag tidak diduplikasi
+    base = build_browser_args(["--start-maximized", "--no-sandbox"], True)
+    assert base.count("--no-sandbox") == 1
+    assert base.count("--start-maximized") == 1
+    assert "--disable-blink-features=AutomationControlled" not in base
+
+    # Env override BROWSER_NO_SANDBOX → no-sandbox walau headful di host
+    with patch.dict(os.environ, {"BROWSER_NO_SANDBOX": "1"}, clear=True):
+        assert needs_no_sandbox(headless=False) is True
+
+
+def test_novnc_settings_flags():
+    """Setelan noVNC: tersedia hanya bila enabled DAN browser tidak headless."""
+    from backend.config import Settings
+
+    cfg = Settings(novnc_enabled=True, browser_headless=False, novnc_public_url=" https://vnc.example.com ")
+    assert cfg.novnc_available is True
+    assert cfg.novnc_url == "https://vnc.example.com"
+
+    cfg_headless = Settings(novnc_enabled=True, browser_headless=True)
+    assert cfg_headless.novnc_available is False
+
+    cfg_off = Settings(novnc_enabled=False, browser_headless=False)
+    assert cfg_off.novnc_available is False
+    assert cfg_off.novnc_url == ""
+
+
 def test_on_progress_preserves_total_found():
     """Memastikan _on_progress tidak menimpa total_found dengan angka yang lebih kecil."""
     from backend.services.job_manager import JobManager

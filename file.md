@@ -29,6 +29,11 @@
 ├── scraper_gmaps_sekolah.py        # Skrip legacy prototype GMaps (bukan dipakai app)
 ├── .env.example                    # Template konfigurasi (salurannya ada di .env — JANGAN commit .env)
 ├── .gitignore
+├── Dockerfile                      # Image container: FastAPI + Playwright Chromium + Xvfb/noVNC (deployment)
+├── docker-compose.yml              # Orkestrasi container: app 8001→8000 + noVNC 8002 (monitor browser), shm 1gb
+├── docker/
+│   └── entrypoint.sh               # Entrypoint container: nyalakan Xvfb + openbox + x11vnc + noVNC → exec uvicorn (fallback headless bila gagal)
+├── .dockerignore                   # Pengecualian build context (secret .env, venv, scratch, dokumen)
 ├── .vscode/
 │   └── settings.json               # VS Code: interpreter venv + cline.hooks (workflow)
 ├── tools/
@@ -53,7 +58,7 @@
 │   ├── controllers/                # LAPIS ROUTER (MVC: Controller)
 │   │   ├── __init__.py
 │   │   ├── auth_routes.py          # POST /api/auth/login, logout, GET /me
-│   │   ├── scrape_routes.py        # /sources (meta enrichment dinamis), POST /scrape, POST /enrich, GET+DELETE /jobs, GET /jobs/{id}/incomplete, cancel, browser-login
+│   │   ├── scrape_routes.py        # /sources (meta enrichment dinamis), POST /scrape, POST /enrich, GET+DELETE /jobs, GET /jobs/{id}/incomplete, cancel, browser-status (+info noVNC), browser-login (headless → tolak informatif; headful/noVNC → login via tab monitor)
 │   │   └── lead_routes.py          # /stats, /leads CRUD, /export, /export-csv, /duplicates, /import
 │   ├── models/                     # LAPIS MODEL (MVC: Model) — lihat database.md
 │   │   ├── __init__.py             # Re-export Base, SessionLocal, get_db, init_db + semua model
@@ -184,6 +189,33 @@ GET  /api/export      → exporter.export_leads → .xlsx (styling + dropdown st
 GET  /api/export-csv  → exporter.export_leads_csv (delimiter ';', BOM utf-8, anti formula-injection)
 POST /api/import      → importer.import_csv_text → save_raw_items (auto clean + dedup)
 ```
+
+### 2.7 Monitor Browser via noVNC (Docker / VPS)
+Di container tidak ada layar, jadi jendela Chromium Playwright tidak bisa muncul di
+device user. Solusinya **noVNC + layar virtual** — tanpa perubahan alur aplikasi:
+
+```
+docker/entrypoint.sh (ENTRYPOINT container)
+  1. Xvfb :99              → layar virtual 1920x1080x24 (-ac, tanpa TCP)
+  2. openbox               → window manager (title bar, maximize, Alt+Tab antar job)
+  3. x11vnc :5900          → server VNC (opsional password via NOVNC_PASSWORD, maks 8 char RFB)
+  4. websockify :8002      → noVNC (UI VNC HTML5) → http://<host>:8002/vnc.html?autoconnect=1&resize=scale
+  5. exec uvicorn          → CMD aplikasi (BROWSER_HEADLESS=false dipaksa saat display siap)
+```
+
+- Chromium **headful** di `:99`; `JobManager` tidak membatasi konkurensi → 3 job
+  bersamaan = 3 jendela Chromium di layar yang sama (Alt+Tab / drag via title bar).
+- Bila display stack gagal start (`NOVNC_ENABLED=0`, paket tidak ada, Xvfb mati) →
+  entrypoint memaksa `BROWSER_HEADLESS=true` (fallback aman, scraping tetap jalan).
+- **Login Google** via tombol "Buka Browser Login" kembali berfungsi di container:
+  buka tab Monitor (noVNC), login, tutup jendela — profil tersimpan di volume
+  `playwright_profile` (`~/playwright_chrome_profile_gmaps`).
+- UI membaca info monitor dari `GET /api/browser-status → {"novnc": {...}}`
+  (`scrape_routes._novnc_status`) dan menampilkan tombol **Lihat Browser (Monitor)**
+  (`frontend/app.js::novncTargetUrl`, pakai `NOVNC_PUBLIC_URL` bila diisi — mis. via HTTPS/Cloudflare).
+- Keamanan: x11vnc diproteksi `NOVNC_PASSWORD` (maks 8 karakter, batas protokol RFB);
+  kosong = tanpa password → WAJIB dibatasi firewall/tunnel. `VNC_PORT` 5900 tidak
+  dipublikasikan; hanya web noVNC `:8002`.
 ---
 
 ## 3. Jalan Kode — Pipeline Scraping (Seed → Enrichment)
@@ -228,24 +260,27 @@ Alur konseptual PRD v1.1 (lihat [prd.md](prd.md) §6.2); implementasi aktual di 
 | File | Peran dalam jalan kode |
 |---|---|
 | `backend/main.py` | Merakit FastAPI: lifespan → `init_db()` + `seed_default_user()`; SessionMiddleware; mount `/audio` lalu `/` (frontend) di akhir |
-| `backend/config.py` | Baca env `.env`; `database_url` = `mysql+pymysql://...`; default delay scraper 1–3 detik |
+| `backend/config.py` | Baca env `.env`; `database_url` = `mysql+pymysql://...`; default delay scraper 1–3 detik; **konfigurasi browser Playwright**: `browser_headless` (env `BROWSER_HEADLESS`) & `browser_channel` (env `BROWSER_CHANNEL`); **konfigurasi monitor noVNC**: `novnc_enabled/port/public_url/password` + properti `novnc_available` & `novnc_url` (dipakai `/api/browser-status`) |
 | `backend/models/base.py` | Engine SQLAlchemy + pooling `pool_recycle=1800`, `pool_pre_ping` (mitigasi TiDB idle disconnect), SSL `connect_args` |
 | `backend/services/job_manager.py` | **Orkestrator scraping**: `SCRAPER_REGISTRY`, `ENRICHMENT_SOURCES`, thread background, cancel, `reconcile()` watchdog (koreksi job stuck `running` → `error` saat proses/browser mati/hang). `_run` bercabang: seed → `save_raw_items`; enrichment → `match_and_merge` |
 | `backend/services/storage_service.py` | Gerbang utama tulis/baca `leads`; `LEAD_FIELDS`, `FK_FIELDS`, `SORTABLE_COLUMNS`; helper job (`create_job`, `update_job`, `delete_job`, `list_jobs`); opsi dropdown (`list_categories`, `list_cities`, `list_categories_with_cities` = DISTINCT Kategori→Kota dari data seed) |
 | `backend/services/auth_service.py` | bcrypt hash/verify |
-| `backend/services/browser_profile.py` | Kloning profil login Chrome bawaan (%LOCALAPPDATA%) ke worker Playwright tanpa bentrok process lock |
+| `backend/services/browser_profile.py` | **Sumber tunggal konfigurasi launch browser**: `launch_login_browser_context()` membaca `settings.browser_headless` + `settings.browser_channel` (`BROWSER_CHANNEL=""` → Chromium bundled Playwright/Docker, `chrome` → Chrome sistem/lokal); `build_browser_args()` = sumber tunggal argumen launch (headless **atau** root/container → `--no-sandbox` + `--disable-dev-shm-usage`; berlaku juga headful di layar virtual noVNC), lalu kloning profil login ke worker Playwright bila profil utama terkunci (anti process lock) |
 | `backend/services/cleaner.py` | Normalisasi wajib sebelum DB: telp→`628...`, nama, website domain, validasi email, buang CDN (`ggpht.com`, dll) |
 | `backend/services/code_generator.py` | Generator format kode bisnis unik: `LD-{KATEGORI}-{001}`, `KAT-{KATEGORI}-{001}`, `K-{KOTA}-{001}` |
 | `backend/services/enrichment_service.py` | **Core logic enrichment**: `find_incomplete_leads` (target seed gmaps difilter kategori+kota & field kosong, `limit`=maks hasil), `match_and_merge` (isi hanya field kosong, tidak replace, tidak buat lead baru), `ENRICHMENT_FIELDS`, `CATEGORY_ENRICHMENT_SOURCES`, threshold fuzzy |
 | `backend/services/dedup_service.py` | Fingerprint & grouping duplikat; `resolve_group` → `merge_history` |
 | `backend/services/scrapers/base.py` | `BaseScraper`: `rate_limit()` = `random.uniform(min, max)` (SOP 1–3 detik), `cancel()`, `emit_progress()` |
-| `backend/services/scrapers/gmaps.py` | Seed semua segmen; `CATEGORY_KEYWORDS`, `INVALID_SCHOOL` regex, `browser_status`/`browser_login`, `is_alive()` (deteksi jendela Chrome ditutup) |
-| `backend/services/scrapers/dapodik.py` | **Enrichment Sekolah**: cari NPSN+kepsek per nama sekolah (target dari JobManager) di referensi.data.kemdikbud.go.id; output → `match_and_merge` |
+| `backend/services/scrapers/gmaps.py` | Seed semua segmen; `CATEGORY_KEYWORDS`, `INVALID_SCHOOL` regex, `browser_status` (termasuk flag `headless`) / `browser_login` (launch ikut settings via `launch_login_browser_context`, cleanup worker-clone), `is_alive()` (deteksi jendela Chrome ditutup) |
+| `backend/services/scrapers/dapodik.py` | **Enrichment Sekolah**: cari NPSN+kepsek per nama sekolah (target dari JobManager) di referensi.data.kemdikbud.go.id; launch browser ikut settings via `build_browser_args()` (`browser_headless`/`browser_channel` + `--no-sandbox` saat di container); output → `match_and_merge` |
 | `backend/services/scrapers/google.py` | **Enrichment Kontak Umum (Google/Web)**: cari no. WA/telp, email, website, sosmed (Instagram) per target via DuckDuckGo HTML parser; output → `match_and_merge` |
 | `backend/services/exporter.py` | `BASE_COLUMNS` + `EXTRA_COLUMNS` per sumber → XLSX/CSV |
 | `backend/services/importer.py` | Parser CSV label Indonesia → field; kontingensi ketika sumber diblokir |
 | `frontend/app.js` | Menghubungkan UI (`index.html`) ke seluruh API + polling job + tombol Stop; Riwayat Kategori (localStorage, unique, klik-isi); Hapus riwayat job (`DELETE /api/jobs/{id}` + cascade enrichment otomatis); rumus progress `(found/max)×100` via `jobProgressPct` (freeze saat Stop/cancelled); format `formatJobResult` (`Math.max(progress, taken)`); **Pemisahan riwayat job**: Scrape khusus gmaps, Enrichment khusus non-gmaps; tombol ⚡ Enrich direct ke form Enrichment; drawer/accordion **📋 Data Belum Lengkap** di Riwayat Enrichment + toolbar **⚡ Lengkapi Otomatis dengan Sumber Lain** + edit manual via `openEditModal` |
 | `tests/test_auth.py` | Smoke test alur login |
+| `Dockerfile` | Image deployment: python:3.11-slim + deps + `playwright install --with-deps chromium` + paket display stack (`xvfb x11vnc openbox novnc websockify`); ENV `DISPLAY=:99`, `BROWSER_HEADLESS=false`, `NOVNC_PORT=8002`; `EXPOSE 8000 8002`; `ENTRYPOINT docker/entrypoint.sh` → CMD `uvicorn backend.main:app --host 0.0.0.0 --port 8000` |
+| `docker/entrypoint.sh` | **ENTRYPOINT container (monitor browser)**: nyalakan `Xvfb :99` → `openbox` → `x11vnc :5900` (password opsional via `NOVNC_PASSWORD`) → `websockify`+noVNC `:8002` → `exec` CMD; bila display gagal/`NOVNC_ENABLED=0` → paksa `BROWSER_HEADLESS=true` (fallback headless). Alur lengkap: file.md §2.7 |
+| `docker-compose.yml` | Jalur deployment: service `web-scraper` (`init: true`, `shm_size 1gb`), pemetaan host **8001 → 8000** (app, hindari bentrok container EdTeknoGuard) & **8002 → 8002** (noVNC monitor), `env_file: .env`, env `BROWSER_HEADLESS=false` + `DISPLAY=:99` + `NOVNC_PASSWORD`/`NOVNC_PUBLIC_URL` (lihat blok `environment`), volume `playwright_profile` untuk profil login browser |
 
 ---
 
@@ -268,6 +303,8 @@ Jalankan validator: `venv\Scripts\python.exe tools\check_docs_sync.py`
   **model SQLAlchemy** dengan tabel/kolom di [database.md](database.md), dan
   **cross-reference** ketiga dokumen ([prd.md](prd.md) ↔ file.md ↔ database.md).
 - Hasil keluar non-zero → ada drift → perbaiki dokumen **sebelum** commit.
+- Direktori/berkas runtime tidak dilacak (selaras `.gitignore` & `.dockerignore`):
+  `venv/`, `.git/`, `.pytest_cache/`, `__pycache__/`, `scratch/`, `logs/`, serta berkas `*.pyc` dan `*.log`.
 
 Alur dokumen: **prd.md (apa/mengapa) → file.md (di mana / jalannya) → database.md (data)**.
 ---
@@ -288,7 +325,12 @@ requirements.txt
 run.py
 scraper_gmaps_sekolah.py
 .env.example
+.gitattributes
 .gitignore
+.dockerignore
+Dockerfile
+docker/entrypoint.sh
+docker-compose.yml
 .vscode/settings.json
 tools/add_seed_job_fk_to_scrape_jobs.py
 tools/check_docs_sync.py

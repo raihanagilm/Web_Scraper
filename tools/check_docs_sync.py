@@ -28,9 +28,12 @@ DOCS = {
 }
 
 # Direktori / pola yang TIDAK dilacak (dinamis / secret / tooling / asset)
+# `scratch` & `logs` = ruang kerja sementara/runtime (di-gitignore, lihat .gitignore bagian Logs)
 EXCLUDED_DIRS = {"venv", ".git", ".pytest_cache", "__pycache__", "node_modules",
-                 "exports", "uploads", "audio", "css", "js"}
+                 "exports", "uploads", "audio", "css", "js", "scratch", "logs"}
 EXCLUDED_FILES = {".env"}
+# Ekstensi runtime/artefak yang tidak pernah jadi bagian dokumen (selaras .gitignore)
+EXCLUDED_SUFFIXES = (".pyc", ".log")
 
 XREF = {  # dokumen -> wajib memuat referensi dokumen lain (saling membaca)
     "prd.md": ("file.md", "database.md"),
@@ -45,7 +48,7 @@ def _scan_actual_files() -> set[str]:
     for root, dirs, files in os.walk(ROOT):
         dirs[:] = [d for d in dirs if d not in EXCLUDED_DIRS]
         for f in files:
-            if f.endswith(".pyc") or f in EXCLUDED_FILES or (f.startswith(".env") and f != ".env.example"):
+            if f.endswith(EXCLUDED_SUFFIXES) or f in EXCLUDED_FILES or (f.startswith(".env") and f != ".env.example"):
                 continue
             p = Path(root).resolve().relative_to(ROOT).as_posix()
             rel = f"{p}/{f}" if p != "." else f

@@ -1278,6 +1278,33 @@ document.querySelectorAll("#page-scrape th[data-jsort]").forEach((th) => {
 // ---- Browser login (Google) ----
 let browserPollTimer = null;
 
+// ---- Monitor Browser (noVNC) — jendela Chromium di server distream ke browser user ----
+let novncState = { available: false };
+
+// Susun URL noVNC dari /api/browser-status: pakai URL eksplisit bila ada
+// (NOVNC_PUBLIC_URL, mis. di balik HTTPS/Cloudflare tunnel); kalau tidak,
+// susun dari hostname halaman + port noVNC.
+function novncTargetUrl(info) {
+  if (!info || !info.available) return "";
+  if (info.url) return info.url;
+  const proto = location.protocol === "https:" ? "https:" : "http:";
+  return `${proto}//${location.hostname}:${info.port || 8002}/vnc.html?autoconnect=1&resize=scale`;
+}
+
+function renderMonitorButton(info) {
+  const monitor = $("#btn-browser-monitor");
+  if (!monitor) return;
+  const url = novncTargetUrl(info);
+  if (url) {
+    monitor.href = url;
+    monitor.classList.remove("hidden");
+    monitor.style.display = "inline-flex";
+  } else {
+    monitor.classList.add("hidden");
+    monitor.style.display = "none";
+  }
+}
+
 function stopBrowserPolling() {
   clearInterval(browserPollTimer);
   browserPollTimer = null;
@@ -1287,6 +1314,8 @@ async function loadBrowserStatus() {
   const el = $("#browser-login-status");
   try {
     const s = await api("/api/browser-status");
+    novncState = s.novnc || { available: false };
+    renderMonitorButton(novncState);
     if (s.has_cookies) {
       el.innerHTML = `${ICONS.checkCircle}<span>Profil browser siap — sesi Google tersimpan.</span>`;
       el.style.color = "var(--success, #16a34a)";
@@ -1294,6 +1323,19 @@ async function loadBrowserStatus() {
       el.style.alignItems = "center";
       el.style.gap = "6px";
       stopBrowserPolling();
+    } else if (s.headless) {
+      el.innerHTML = `${ICONS.alertTriangle}<span>Mode headless: login Google manual tidak tersedia (aktifkan monitor noVNC). Scraping GMaps tetap berjalan tanpa login.</span>`;
+      el.style.color = "var(--warning, #d97706)";
+      el.style.display = "inline-flex";
+      el.style.alignItems = "center";
+      el.style.gap = "6px";
+      stopBrowserPolling();
+    } else if (novncState.available) {
+      el.innerHTML = `${ICONS.alertTriangle}<span>Belum login ke Google — klik "Buka Browser Login", lalu login di tab Monitor Browser.</span>`;
+      el.style.color = "var(--warning, #d97706)";
+      el.style.display = "inline-flex";
+      el.style.alignItems = "center";
+      el.style.gap = "6px";
     } else {
       el.innerHTML = `${ICONS.alertTriangle}<span>Belum login ke Google — klik "Buka Browser Login".</span>`;
       el.style.color = "var(--warning, #d97706)";
@@ -1315,8 +1357,19 @@ $("#btn-browser-login").addEventListener("click", async () => {
   const el = $("#browser-login-status");
   setButtonLoading(btn, true, "Membuka Chrome...");
   try {
-    await api("/api/browser-login", { method: "POST" });
-    el.innerHTML = `${ICONS.info}<span>Chrome terbuka — login ke akun Google, lalu tutup jendelanya.</span>`;
+    const res = await api("/api/browser-login", { method: "POST" });
+    // Mode headless (Docker): server menolak membuka browser login manual — tampilkan info saja.
+    if (res && res.headless) {
+      el.innerHTML = `${ICONS.alertTriangle}<span>${res.msg || "Login manual tidak tersedia di mode headless."}</span>`;
+      el.style.color = "var(--warning, #d97706)";
+      el.style.display = "inline-flex";
+      el.style.alignItems = "center";
+      el.style.gap = "6px";
+      return;
+    }
+    el.innerHTML = `${ICONS.info}<span>${novncState.available
+      ? "Chrome terbuka di server — buka tab Monitor Browser, login ke akun Google, lalu tutup jendelanya."
+      : "Chrome terbuka — login ke akun Google, lalu tutup jendelanya."}</span>`;
     el.style.color = "var(--muted)";
     el.style.display = "inline-flex";
     el.style.alignItems = "center";

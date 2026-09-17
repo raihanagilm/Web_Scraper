@@ -1,0 +1,38 @@
+# ============================================================
+#  .dockerignore — file yang DILUMA jadi image container
+# ============================================================
+
+# Kredensial / secret — JANGAN masuk image
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# VCS / IDE / tooling
+.git
+.gitignore
+.vscode
+.clinerules
+.githooks
+.vercel
+scratch
+
+# Python / venv
+venv
+__pycache__/
+*.pyc
+.pytest_cache
+
+# Tests & tools (tidak dibutuhkan saat runtime)
+tests
+tools
+
+# Dokumen / skrip legacy (tidak dibutuhkan saat runtime)
+*.md
+scraper_gmaps_sekolah.py
+
+# Docker self
+Dockerfile
+.dockerignore
+docker-compose.yml

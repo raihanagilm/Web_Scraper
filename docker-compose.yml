@@ -1,0 +1,53 @@
+# ============================================================
+#  Docker Compose — Web_Scraper (FastAPI + Playwright + frontend)
+#  Run:   docker compose up -d --build
+#  Akses: http://localhost:8001        (host)  → aplikasi
+#         http://localhost:8002        (host)  → noVNC: MONITOR BROWSER
+#         http://<IP_LAN_WEB>:8001 / :8002     (device lain di jaringan/VPS)
+#  Catatan: host port 8001 dipakai agar tidak bentrok dengan
+#           container EdTeknoGuard (0.0.0.0:8000) di mesin yang sama.
+#  Monitor browser: Chromium berjalan HEADFUL di layar virtual (Xvfb)
+#           di dalam container, lalu di-stream ke browser user via noVNC
+#           (lihat docker/entrypoint.sh & file.md §2.7). Isi NOVNC_PASSWORD
+#           di .env agar akses monitor tidak terbuka bebas.
+# ============================================================
+services:
+  web-scraper:
+    build: .
+    image: web-scraper:latest
+    container_name: web-scraper
+    restart: unless-stopped
+    # tini sebagai PID 1 → proses latar display stack (Xvfb/x11vnc/websockify)
+    # di-reap dengan benar (tidak menumpuk zombie).
+    init: true
+    # Chromium butuh /dev/shm > 64MB (default Docker) agar tidak crash saat render
+    shm_size: "1gb"
+    ports:
+      # host:container → 8001 di host (bebas), app tetap 8000 di dalam container
+      - "8001:8000"
+      # noVNC (monitor browser) — batasi lewat firewall bila VPS publik
+      - "8002:8002"
+    env_file:
+      - .env
+    environment:
+      # Chromium HEADFUL di display virtual :99 → terlihat dari device user via noVNC.
+      # Bila display stack gagal start, entrypoint otomatis memaksa headless.
+      BROWSER_HEADLESS: "false"
+      BROWSER_CHANNEL: ""
+      DISPLAY: ":99"
+      NOVNC_ENABLED: "1"
+      NOVNC_PORT: "8002"
+      SCREEN_WIDTH: "1920"
+      SCREEN_HEIGHT: "1080"
+      # Kosong = noVNC tanpa password (WAJIB dibatasi firewall/tunnel).
+      # Isi NOVNC_PASSWORD di .env (maks 8 karakter — batas protokol VNC).
+      NOVNC_PASSWORD: "${NOVNC_PASSWORD:-}"
+      # URL noVNC eksplisit bila diakses via HTTPS/Cloudflare tunnel,
+      # mis. https://vnc.domain-anda.com/vnc.html?autoconnect=1&resize=scale
+      NOVNC_PUBLIC_URL: "${NOVNC_PUBLIC_URL:-}"
+    volumes:
+      # Profil browser persisten (login Google) agar tidak hilang saat restart
+      - playwright_profile:/root/playwright_chrome_profile_gmaps
+
+volumes:
+  playwright_profile:

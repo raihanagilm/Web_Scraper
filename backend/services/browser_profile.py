@@ -18,6 +18,8 @@ import uuid
 from typing import Tuple, Optional
 from playwright.sync_api import sync_playwright, BrowserContext
 
+from backend.config import settings
+
 logger = logging.getLogger(__name__)
 
 LOGIN_PROFILE_DIR = os.path.expanduser("~/playwright_chrome_profile_gmaps")
@@ -61,13 +63,74 @@ def clone_login_profile(worker_dir: str) -> str:
     return worker_dir
 
 
+def is_container_runtime() -> bool:
+    """Deteksi runtime container (Docker/VPS) tanpa dependensi tambahan."""
+    if os.path.exists("/.dockerenv"):
+        return True
+    try:
+        with open("/proc/1/cgroup", "r", encoding="utf-8", errors="ignore") as fh:
+            content = fh.read()
+        return any(marker in content for marker in ("docker", "containerd", "kubepods"))
+    except OSError:
+        return False
+
+
+def needs_no_sandbox(headless: Optional[bool] = None) -> bool:
+    """Chromium sebagai root / di container menolak start tanpa --no-sandbox.
+
+    Berlaku juga saat HEADFUL di layar virtual (noVNC), karena masalahnya
+    adalah user root, bukan mode headless.
+    """
+    if os.environ.get("BROWSER_NO_SANDBOX", "").strip().lower() in ("1", "true", "yes"):
+        return True
+    if headless is None:
+        headless = settings.browser_headless
+    if headless:
+        return True
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
+        return True
+    return is_container_runtime()
+
+
+def build_browser_args(args: Optional[list] = None, headless: Optional[bool] = None) -> list:
+    """Bangun daftar argumen launch Chromium (sumber tunggal, dipakai semua scraper).
+
+    - args kosong → default `--start-maximized`
+    - runtime container/root → + `--no-sandbox`, `--disable-dev-shm-usage`
+    """
+    if headless is None:
+        headless = settings.browser_headless
+    cmd_args = list(args or ["--start-maximized"])
+    if needs_no_sandbox(headless):
+        if "--no-sandbox" not in cmd_args:
+            cmd_args.append("--no-sandbox")
+        # /dev/shm container kecil (default 64MB) → render Chromium mudah crash
+        if "--disable-dev-shm-usage" not in cmd_args:
+            cmd_args.append("--disable-dev-shm-usage")
+    return cmd_args
+
+
 def launch_login_browser_context(
     playwright_instance,
     job_id: Optional[str] = None,
-    headless: bool = False,
+    headless: Optional[bool] = None,
     args: Optional[list] = None,
 ) -> Tuple[BrowserContext, Optional[str]]:
     """Membuka persistent context Playwright dengan akun Google yang sudah login.
+
+    Konfigurasi browser diambil dari settings (env), sehingga jalur lokal
+    (Chrome sistem, headful) dan jalur Docker (Chromium bundled, headful di
+    layar virtual Xvfb yang di-stream noVNC / fallback headless) memakai
+    fungsi yang sama:
+    - BROWSER_HEADLESS=true  → headless (dipakai bila display stack mati)
+    - BROWSER_HEADLESS=false → headful; di Docker jendelanya muncul di layar
+      virtual Xvfb (:99) dan bisa dilihat lewat noVNC (file.md §2.7)
+    - BROWSER_CHANNEL=""     → Chromium bundled Playwright (Docker)
+      BROWSER_CHANNEL=chrome → Google Chrome sistem (lokal)
+
+    Argumen launch selalu dibangun lewat `build_browser_args()`: di container
+    Chromium berjalan sebagai root, jadi `--no-sandbox` WAJIB — bukan hanya
+    saat headless, tapi juga saat headful di layar virtual.
 
     Strategi:
     1. Coba buka profil utama ~/playwright_chrome_profile_gmaps secara langsung (instan & tanpa overhead).
@@ -75,7 +138,13 @@ def launch_login_browser_context(
 
     Mengembalikan tuple: (context, temp_worker_dir_yang_perlu_dibersihkan_atau_None).
     """
-    cmd_args = args or ["--start-maximized"]
+    if headless is None:
+        headless = settings.browser_headless
+    # channel=None → Chromium bundled Playwright (Docker); "chrome" → Chrome sistem (lokal)
+    channel = settings.browser_channel or None
+
+    cmd_args = build_browser_args(args, headless)
+
     primary_dir = get_login_profile_dir()
 
     # 1. Coba buka direktori profil login utama
@@ -83,7 +152,7 @@ def launch_login_browser_context(
         context = playwright_instance.chromium.launch_persistent_context(
             user_data_dir=primary_dir,
             headless=headless,
-            channel="chrome",
+            channel=channel,
             ignore_https_errors=True,
             args=cmd_args,
         )
@@ -100,7 +169,7 @@ def launch_login_browser_context(
     context = playwright_instance.chromium.launch_persistent_context(
         user_data_dir=worker_dir,
         headless=headless,
-        channel="chrome",
+        channel=channel,
         ignore_https_errors=True,
         args=cmd_args,
     )

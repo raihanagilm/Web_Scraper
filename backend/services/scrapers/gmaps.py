@@ -18,6 +18,7 @@ from playwright.sync_api import sync_playwright
 
 from backend.services.scrapers.base import BaseScraper
 from backend.services.cleaner import normalize_phone, clean_social_url, is_valid_website
+from backend.config import settings
 from backend.services.browser_profile import (
     launch_login_browser_context,
     get_login_profile_dir,
@@ -301,19 +302,18 @@ class GmapsScraper(BaseScraper):
             "profile": profile,
             "profile_exists": os.path.isdir(profile),
             "has_cookies": is_login_profile_ready(),
+            "headless": settings.browser_headless,
         }
 
     def browser_login(self) -> None:
-        """Buka Chrome headful ke Google Maps agar user login manual sekali.
-        Sesi tersimpan di profil persisten; jendela ditutup manual oleh user."""
+        """Buka browser ke Google Maps agar user login manual sekali.
+
+        Konfigurasi browser (headful/headless, Chrome sistem vs Chromium bundled)
+        mengikuti settings — lihat `launch_login_browser_context`. Sesi tersimpan
+        di profil persisten; jendela ditutup manual oleh user.
+        """
         with sync_playwright() as p:
-            context = p.chromium.launch_persistent_context(
-                user_data_dir=self._profile_dir(),
-                headless=False,
-                channel="chrome",
-                ignore_https_errors=True,
-                args=["--start-maximized"],
-            )
+            context, worker_dir = launch_login_browser_context(p, job_id=self.job_id)
             page = context.new_page()
             try:
                 page.goto("https://www.google.com/maps", timeout=60000)
@@ -325,6 +325,12 @@ class GmapsScraper(BaseScraper):
                     context.close()
                 except Exception:
                     pass
+                # Bersihkan worker-clone sementara bila profil utama tadi terkunci
+                if worker_dir:
+                    try:
+                        shutil.rmtree(worker_dir, ignore_errors=True)
+                    except Exception:
+                        pass
 
     def run(self) -> list[dict]:
         leads: list[dict] = []
@@ -334,7 +340,6 @@ class GmapsScraper(BaseScraper):
             context, worker_dir = launch_login_browser_context(
                 p,
                 job_id=self.job_id,
-                headless=False,
                 args=["--start-maximized"],
             )
             try:

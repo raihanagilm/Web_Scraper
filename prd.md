@@ -74,6 +74,7 @@ Tool internal berbasis web untuk **mengotomatiskan pengumpulan lead bisnis (B2B)
 | Format Telepon | Standarisasi ke `628xxxxxxxx` | `cleaner.py`: `normalize_phone()` |
 | Kerahasiaan Data | Data hanya internal Edtekno, dilarang disebar | `.env` di-gitignore, login wajib, data di DB internal |
 | Keamanan Kredensial | Password di-hash, tidak pernah plain-text | bcrypt + session cookie HttpOnly |
+| Monitor Browser (Docker/VPS) | Jendela Chromium di server harus bisa dilihat dari device user (sampai 3 job bersamaan) | `docker/entrypoint.sh`: Xvfb (layar virtual) + x11vnc + noVNC (port 8002, password `NOVNC_PASSWORD`) — detail file.md §2.7 |
 
 
 ---
@@ -240,7 +241,7 @@ Estimasi: 6–8 minggu (1 orang, paruh waktu magang).
 
 ## 15. Asumsi
 
-Chrome terinstall, internet stabil, kredensial TiDB aktif, seed admin/agiltampan via .env, v1 localhost, hanya halaman publik, target 500–1.000+ leads agregat. Komposisi data: seluruh lead berawal dari **seed Google Maps**; data pendukung (NPSN, kepsek, email, website, sosmed) diisi bertahap oleh Dapodik & Google Search sesuai segmen.
+Chrome terinstall, internet stabil, kredensial TiDB aktif, seed admin/agiltampan via .env, v1 localhost, hanya halaman publik, target 500–1.000+ leads agregat. Di Docker/VPS Chromium berjalan **headful di layar virtual Xvfb** dan dimonitor via noVNC (`NOVNC_ENABLED=1`); di mesin lokal Windows tetap memakai jendela Chrome sistem. Komposisi data: seluruh lead berawal dari **seed Google Maps**; data pendukung (NPSN, kepsek, email, website, sosmed) diisi bertahap oleh Dapodik & Google Search sesuai segmen.
 
 ---
 

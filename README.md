@@ -185,6 +185,38 @@ Aplikasi membutuhkan mesin browser Chromium untuk melakukan scraping Google Maps
 playwright install chromium
 ```
 
+### 4. Alternatif: Jalankan via Docker (Tanpa Venv Lokal)
+Langkah 1–3 di atas tidak diperlukan bila memakai Docker — image sudah memuat seluruh dependensi
+Python, Chromium Playwright, serta **layar virtual + noVNC** untuk memantau jendela browser scraping:
+```bash
+docker compose up -d --build     # build image & jalankan container
+docker compose ps                # cek status
+docker compose logs -f           # ikuti log
+docker compose down              # hentikan
+```
+Aplikasi dapat diakses di 👉 **`http://127.0.0.1:8001`** (host port **8001** sengaja dipakai agar tidak
+bentrok dengan aplikasi lain — mis. EdTeknoGuard — yang memakai port 8000 di mesin yang sama).
+
+#### 4.1 Monitor Browser (noVNC) — lihat jendela Chromium di server/VPS
+Di container tidak ada layar, tetapi scraper dijalankan **headful di layar virtual (Xvfb)** agar
+tahan blokir anti-bot dan prosesnya bisa dipantau. Entrypoint container menyalakan
+`Xvfb → openbox → x11vnc → websockify (noVNC)` lalu menjalankan aplikasi
+(detail alur: `docker/entrypoint.sh` dan `file.md §2.7`):
+
+- **Monitor**: buka `http://<host-server>:8002/vnc.html?autoconnect=1&resize=scale`
+  (atau klik tombol **👁 Lihat Browser (Monitor)** di halaman *Scrape*).
+- **3 job bersamaan** = 3 jendela Chromium di satu layar — pindah dengan `Alt+Tab` atau
+  drag lewat title bar (window manager `openbox`).
+- **Login Google** di server: klik **Buka Browser Login** di aplikasi → jendela Chrome muncul
+  di tab Monitor → login → tutup jendela (profil tersimpan di volume `playwright_profile`).
+- **Password** (disarankan, terutama di VPS publik): set `NOVNC_PASSWORD` di `.env`
+  (maks 8 karakter, batas protokol VNC) lalu `docker compose up -d`. Jika kosong,
+  batasi port 8002 lewat firewall/Cloudflare tunnel.
+- **Fallback aman**: bila display stack gagal (`NOVNC_ENABLED=0`), entrypoint otomatis
+  memaksa `BROWSER_HEADLESS=true` — scraping tetap berjalan tanpa monitor.
+
+> Catatan: `.env` tetap dipakai lewat `env_file: .env` (tidak ikut masuk image — lihat `.dockerignore`).
+
 ---
 
 ## ⚙️ Konfigurasi Environment Variable (.env)
@@ -237,6 +269,27 @@ SEED_FULL_NAME="System Administrator"
 SCRAPER_MIN_DELAY=1
 SCRAPER_MAX_DELAY=3
 SCRAPER_DEFAULT_MAX_RESULTS=100
+
+# ============================================================
+#  Browser Playwright (Chromium)
+# ============================================================
+# false = headful: jendela Chromium di layar virtual Xvfb (Docker → noVNC)
+BROWSER_HEADLESS=false
+# kosong = Chromium bundled Playwright (Docker) · chrome = Chrome sistem (lokal)
+BROWSER_CHANNEL=
+
+# ============================================================
+#  Monitor Browser / noVNC (dipakai docker/entrypoint.sh)
+# ============================================================
+NOVNC_ENABLED=1
+NOVNC_PORT=8002
+# Password akses monitor — WAJIB diisi saat dipakai di VPS publik
+# (maks 8 karakter, batas protokol VNC). Kosong = tanpa password.
+NOVNC_PASSWORD=
+# Opsional: URL noVNC absolut bila diakses via HTTPS/Cloudflare tunnel
+NOVNC_PUBLIC_URL=
+SCREEN_WIDTH=1920
+SCREEN_HEIGHT=1080
 ```
 
 > ⚠️ **PERHATIAN KEAMANAN**: Jangan pernah menambahkan atau meng-commit file `.env` berisi kredensial asli ke repositori Git. File `.env` telah didaftarkan dalam `.gitignore`.
@@ -348,6 +401,7 @@ Setiap penambahan modul baru atau perubahan skema data wajib diikuti dengan memp
 
 #### 3. Tampilan browser scraper muncul saat scraping berlangsung
 - Secara default, scraper Google Maps dan Dapodik dijalankan secara *headful* (jendela browser terlihat) untuk meminimalisasi deteksi bot oleh platform Google. Jangan menutup jendela browser tersebut secara manual agar proses scraping tidak terinterupsi. Jika ingin membatalkan, selalu gunakan tombol **Stop/Batalkan** pada antarmuka web aplikasi.
+- **Di Docker/VPS**, jendela tersebut tampil di layar virtual Xvfb dan dapat dilihat lewat **noVNC**: `http://<host-server>:8002/vnc.html?autoconnect=1&resize=scale` (atau tombol **👁 Lihat Browser (Monitor)** di halaman Scrape). Bila monitor mati (`NOVNC_ENABLED=0`), container otomatis jalan headless.
 
 #### 4. Job berstatus `running` tetapi browser sudah tidak merespons
 - Sistem memiliki fitur *watchdog reconciler*. Pada saat Anda membuka kembali halaman aplikasi atau memuat ulang riwayat job, sistem akan secara otomatis mendeteksi job yang terputus (stalled >600 detik atau proses background mati) dan mengubah statusnya menjadi `error` secara aman tanpa merusak database.

@@ -1,0 +1,9 @@
+feat: tambah dukungan monitor noVNC untuk Docker dan pembersihan profil browser
+
+Tambahkan dukungan monitor noVNC untuk deployment Docker guna memungkinkan
+inspeksi visual jendela Chromium melalui Xvfb. Perbarui .env.example dan
+README.md dengan variabel environment baru (NOVNC_ENABLED, NOVNC_PORT,
+NOVNC_PASSWORD, SCREEN_WIDTH/HEIGHT) serta instruksi penggunaan Docker
+yang detail. Implementasi pembersihan direktori worker di scraper untuk
+menghapus kloning profil sementara jika profil utama terkunci, mencegah
+ kebocoran sumber daya selama pekerjaan scraping bersamaan.

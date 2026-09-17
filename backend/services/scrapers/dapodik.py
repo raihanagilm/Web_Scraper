@@ -23,6 +23,8 @@ from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 
 from backend.services.scrapers.base import BaseScraper
+from backend.services.browser_profile import build_browser_args
+from backend.config import settings
 
 # ---- Konfigurasi endpoint Kemendikdasmen (PRD v1.1 §5.2) ----
 REFERENSI_SEARCH_URL = "https://referensi.data.kemendikdasmen.go.id/pendidikan/cari/{keyword}"
@@ -83,12 +85,19 @@ class DapodikScraper(BaseScraper):
         browser_success = False
         try:
             with sync_playwright() as p:
+                # Sumber tunggal argumen launch (no-sandbox & dev-shm saat di
+                # container/root — berlaku juga headful di layar virtual noVNC)
+                browser_args = build_browser_args(
+                    ["--start-maximized", "--disable-blink-features=AutomationControlled"],
+                    settings.browser_headless,
+                )
                 context = p.chromium.launch_persistent_context(
                     user_data_dir=worker_dir,
-                    headless=False,
-                    channel="chrome",
+                    headless=settings.browser_headless,
+                    # '' → Chromium bundled Playwright (Docker); 'chrome' → Chrome sistem (lokal)
+                    channel=settings.browser_channel or None,
                     ignore_https_errors=True,
-                    args=["--start-maximized", "--disable-blink-features=AutomationControlled"],
+                    args=browser_args,
                 )
                 page = context.pages[0] if context.pages else context.new_page()
                 self._page = page

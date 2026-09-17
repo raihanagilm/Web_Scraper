@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from backend.config import settings
 from backend.deps import require_auth
 from backend.models import ScrapeJob, get_db
 from backend.services import storage_service as store
@@ -272,17 +273,52 @@ def delete_job(job_id: str, _: dict = Depends(require_auth), db: Session = Depen
 _login_thread: Optional[threading.Thread] = None
 
 
+def _novnc_status() -> dict:
+    """Info monitor browser (noVNC) untuk UI — tanpa membocorkan password.
+
+    noVNC = layar virtual (Xvfb) di container yang di-stream ke browser user;
+    lihat docker/entrypoint.sh & file.md §2.7.
+    """
+    return {
+        "available": settings.novnc_available,
+        "enabled": settings.novnc_enabled,
+        "port": settings.novnc_port,
+        "url": settings.novnc_url,
+        "password_required": bool(settings.novnc_password),
+    }
+
+
 @router.get("/browser-status")
 def browser_status(_: dict = Depends(require_auth)) -> dict:
     try:
-        return GmapsScraper().browser_status()
+        status = GmapsScraper().browser_status()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal cek status browser: {e}")
+    status["novnc"] = _novnc_status()
+    return status
 
 
 @router.post("/browser-login")
 def browser_login(_: dict = Depends(require_auth)) -> dict:
-    """Buka Chrome headful (thread background) agar user login manual sekali."""
+    """Buka browser login Google (thread background) agar sesi tersimpan di profil persisten.
+
+    Di lingkungan headless (monitor noVNC mati) login manual tidak mungkin —
+    tidak ada layar untuk berinteraksi. Kembalikan pesan informatif tanpa
+    membuka browser yang akan menggantung.
+    """
+    if settings.browser_headless:
+        return {
+            "ok": False,
+            "headless": True,
+            "msg": (
+                "Mode headless: tidak ada layar untuk login manual. "
+                "Aktifkan monitor browser (NOVNC_ENABLED=1 di container) atau "
+                "login sekali di mesin lokal lalu salin profil "
+                "~/playwright_chrome_profile_gmaps ke volume container. "
+                "Scraping GMaps tetap berjalan tanpa login."
+            ),
+        }
+
     global _login_thread
     if _login_thread is not None and _login_thread.is_alive():
         return {

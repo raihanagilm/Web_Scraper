@@ -116,7 +116,7 @@ class GoogleScraper(BaseScraper):
                 context, worker_dir = launch_login_browser_context(
                     p,
                     job_id=self.job_id,
-                    headless=False,
+                    headless=None,  # None → ikut settings.browser_headless (Docker: headless + bundled Chromium)
                     args=["--start-maximized"],
                 )
                 page = context.pages[0] if context.pages else context.new_page()

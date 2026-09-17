@@ -130,6 +130,11 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
               <span>Buka Browser Login</span>
             </button>
+            <!-- Monitor browser (noVNC): menampilkan jendela Chromium di server/VPS (file.md §2.7) -->
+            <a id="btn-browser-monitor" class="btn btn-ghost btn-sm hidden" href="#" target="_blank" rel="noopener" style="align-items:center; gap:6px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              <span>Lihat Browser (Monitor)</span>
+            </a>
             <span id="browser-login-status" class="form-msg muted">Profil browser: memeriksa...</span>
           </div>
           <p id="scrape-msg" class="form-msg hidden"></p>
@@ -473,6 +478,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=17"></script>
+  <script src="app.js?v=19"></script>
 </body>
 </html>
