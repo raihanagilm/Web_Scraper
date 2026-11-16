@@ -100,12 +100,11 @@
 │   ├── index.html                  # Shell aplikasi & navigasi (login, drawer mobile, sidebar, layout container)
 │   ├── views/                      # Partial HTML view per modul/menu (< 250 baris per file)
 │   │   ├── dashboard.html          # View Ringkasan & KPI statistik
-│   │   ├── scrape.html             # View Google Maps Scraper & Riwayat Job
-│   │   ├── enrichment.html         # View Panduan & Job Enrichment
+│   │   ├── scrape.html             # View Google Maps Scraper, Auto-Chain, & Riwayat Job (dengan dropdown data belum lengkap)
 │   │   ├── results.html            # View Tabel Hasil Leads 8 Kolom Komposit
 │   │   ├── dedup.html              # View Review Duplikat
 │   │   ├── users.html              # View Kelola Pengguna (Admin)
-│   │   └── modals.html             # View Modal Edit Lead, Konfirmasi, & Enrichment
+│   │   └── modals.html             # View Modal Edit Lead, Konfirmasi, & Form
 │   ├── app.js                      # Logika frontend: fetch API, render, WebSocket progress, modular loader
 │   ├── style.css                   # Tema hijau Edtekno (PRD §11)
 │   ├── favicon.svg                 # Ikon resmi favicon browser
@@ -144,20 +143,23 @@ POST /api/scrape  (atau /api/enrich)
       └─ threading.Thread(_run) — background
   _run → scraper.run() → raw_items
        ├─ Seed (gmaps): store.save_raw_items (upsert tiap item) → leads
-       └─ Enrichment (dapodik/google):
-            enrichment_service.match_and_merge(...) — cocokkan hasil ke lead seed
-            yang sudah di DB (filter kategori+kota & field kosong), isi HANYA field
-            kosong, TIDAK membuat lead baru; progress = jumlah lead yang diisi.
+       │    └─ Auto-Chain Enrichment (_auto_chain_enrichment):
+       │         1. Jika kategori Sekolah: auto-run Dapodik Kemendikdasmen (isi NPSN/Kepsek/Email).
+       │         2. Untuk semua kategori: auto-run Google Search jika masih ada field kontak/sosmed kosong.
+       │         Semua berjalan otomatis dalam satu job tanpa perlu aksi klik manual.
+       └─ Enrichment (dapodik/google manual jika dipanggil via API):
+            enrichment_service.match_and_merge(...) — cocokkan hasil ke lead seed.
        → store.update_job status=completed/progress/total_found
 
 DELETE /api/jobs/{id} → hapus 1 baris riwayat job (400 jika job masih berjalan — Stop dulu).
 ```
 
-**UI — Enrichment dipisah ke menu sendiri (moda monitor), aksi ada di Riwayat Job:**
+**UI — Enrichment dipisah ke menu sendiri (moda monitor), aksi ada di Riwayat Job (PRD §11 & §12):**
 - Halaman **Enrichment** (sidebar): menampilkan "Field per Sumber" + **Riwayat Enrichment** (job non-gmaps), stop/hapus baris, serta dropdown **📋 Data Belum Lengkap** (dengan jabaran nama instansi/lokasi & tombol ✏️ Isi Manual).
 - **Tombol ⚡ Enrich** per baris job seed (`gmaps`) yang terminal → langsung mengarahkan (direct) ke form menu Enrichment dengan kategori & kota otomatis terisi.
 - **Tombol ↻ Ulangi** per baris terminal → re-run scrape/enrichment (aman: upsert; enrichment isi field kosong).
 - Kolom **Ditemukan** menampilkan format informatif misal `98/100 dari 120` (terambil / target dari total listing GMaps).
+- **Smart Backend:** Didukung mesin auto-enrichment paralel (5 worker Dapodik) dan auto-chaining di latar belakang.
 
 ### 2.3 Progress realtime & watchdog status
 - **Opsi form Enrichment dinamis**: `GET /api/enrich/options` → Kategori & Kota DISTINCT dari tabel `leads` (data seed gmaps) via `storage_service.list_categories_with_cities`. Frontend menampilkan **dropdown Kategori** + combobox Kota (searchable) yang terisi dinamis; saat Kategori dipilih, daftar Kota otomatis tersaring ke kota yang punya data kategori tsb (mencegah enrichment kombinasi kosong).
@@ -391,7 +393,6 @@ public/index.html
 public/style.css
 public/views/dashboard.html
 public/views/dedup.html
-public/views/enrichment.html
 public/views/modals.html
 public/views/results.html
 public/views/scrape.html

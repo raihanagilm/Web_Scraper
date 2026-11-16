@@ -164,25 +164,36 @@ class ScrapeController:
         if not job:
             raise HTTPException(status_code=404, detail="Job tidak ditemukan")
 
-        fields = ENRICHMENT_FIELDS.get(job.source, [])
-        if not fields:
-            return {
-                "job_id": job.id,
-                "source": job.source,
-                "category": job.category,
-                "city": job.city,
-                "fields": [],
-                "items": [],
-                "total": 0,
-            }
-
-        leads = find_incomplete_leads(
-            db,
-            source=job.source,
-            category=job.category,
-            city=job.city,
-            limit=limit,
-        )
+        if job.source == "gmaps":
+            cat_lower = (job.category or "").lower()
+            is_school = any(w in cat_lower for w in ("sekolah", "sd", "smp", "sma", "smk", "madrasah", "pesantren"))
+            if is_school:
+                fields = ["npsn", "nama_kepsek", "email", "telp", "website", "sosmed"]
+                d_leads = find_incomplete_leads(db, source="dapodik", category=job.category, city=job.city, limit=limit)
+                g_leads = find_incomplete_leads(db, source="google", category=job.category, city=job.city, limit=limit)
+                leads = list({l.id: l for l in (d_leads + g_leads)}.values())[:limit]
+            else:
+                fields = ENRICHMENT_FIELDS.get("google", [])
+                leads = find_incomplete_leads(db, source="google", category=job.category, city=job.city, limit=limit)
+        else:
+            fields = ENRICHMENT_FIELDS.get(job.source, [])
+            if not fields:
+                return {
+                    "job_id": job.id,
+                    "source": job.source,
+                    "category": job.category,
+                    "city": job.city,
+                    "fields": [],
+                    "items": [],
+                    "total": 0,
+                }
+            leads = find_incomplete_leads(
+                db,
+                source=job.source,
+                category=job.category,
+                city=job.city,
+                limit=limit,
+            )
 
         items = []
         for l in leads:

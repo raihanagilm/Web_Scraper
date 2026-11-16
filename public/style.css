@@ -1950,3 +1950,114 @@ th.col-check, td.col-check { text-align: center; }
 .toast-clickable:hover {
   box-shadow: 0 14px 28px -5px rgba(0, 0, 0, 0.16), 0 10px 12px -6px rgba(0, 0, 0, 0.08);
 }
+
+/* Scrape Form Grid & Pre-flight Alert */
+.scrape-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.auto-chain-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+  padding: 3px 10px;
+  border-radius: 99px;
+  margin: 0;
+}
+.scrape-form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  align-items: end;
+}
+.scrape-form-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.scrape-form-grid label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.scrape-form-grid input {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text);
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  width: 100%;
+  min-height: 42px;
+  height: 42px;
+  box-sizing: border-box;
+}
+.scrape-form-grid .btn-primary {
+  min-height: 42px;
+  height: 42px;
+  padding: 0 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .scrape-form-grid {
+    grid-template-columns: 2fr 1.5fr 110px auto;
+  }
+  .scrape-form-grid .btn-primary {
+    width: auto;
+  }
+}
+
+.scrape-existing-alert {
+  margin-top: 14px;
+  padding: 10px 14px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  animation: fadeIn 0.2s ease-in-out;
+}
+.scrape-existing-alert .alert-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #166534;
+}
+.scrape-existing-alert .alert-icon {
+  color: #15803d;
+  flex-shrink: 0;
+}
+.scrape-existing-alert .alert-action-btn {
+  color: #047857;
+  font-weight: 600;
+  padding: 4px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.scrape-existing-alert .alert-action-btn:hover {
+  background: #dcfce7;
+  color: #065f46;
+}

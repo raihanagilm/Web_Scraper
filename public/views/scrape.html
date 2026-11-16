@@ -7,35 +7,57 @@
   </div>
 
   <div class="card">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+    <div class="scrape-header-row">
       <h3 style="margin:0;">Pencarian Leads Google Maps</h3>
-      <span class="enrich-badge google"
-        style="margin:0; font-size:11px; background:#ecfdf5; color:#047857; border:1px solid #a7f3d0;">⚡
-        Auto-Enrichment Aktif</span>
-    </div>
-    <p class="muted">Masukkan jenis bisnis dan kota. Sistem otomatis mengekstrak alamat, website, direct WhatsApp,
-      serta akun media sosial (IG, TikTok, FB, Twitter/X, Email) secara instan tanpa perlu klik enrichment
-      terpisah.</p>
-    <form id="scrape-form" class="form-row">
-      <div>
-        <label for="scrape-keyword">Kata Kunci Pencarian</label>
-        <input id="scrape-keyword" type="text" value="sekolah" placeholder="mis. sekolah, restoran, perusahaan"
-          required />
-      </div>
-      <div><label for="scrape-city">Kota</label><input id="scrape-city" type="text" value="salatiga"
-          placeholder="mis. salatiga, semarang, jakarta" required /></div>
-      <div><label for="scrape-max">Maks. hasil</label><input id="scrape-max" type="number" value="50" min="1"
-          max="50" placeholder="mis. 50" required /></div>
-      <button type="button" id="btn-start-scrape" class="btn btn-primary"
-        style="display:inline-flex; align-items:center; gap:6px;">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="11" cy="11" r="8" />
-          <path d="m21 21-4.35-4.35" />
+      <span class="enrich-badge google auto-chain-badge">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
         </svg>
-        <span>Mulai Scrape</span>
-      </button>
+        <span>Full Auto-Chain Pipeline Aktif</span>
+      </span>
+    </div>
+    <p class="muted">Masukkan jenis bisnis dan kota. Sistem otomatis mengekstrak data dari Google Maps, mengambil WhatsApp & medsos dari website resmi, serta otomatis melengkapi data via Dapodik & Google Search tanpa perlu klik tombol terpisah.</p>
+    <form id="scrape-form" class="scrape-form-grid">
+      <div class="form-col-kw">
+        <label for="scrape-keyword">Kata Kunci Pencarian</label>
+        <input id="scrape-keyword" type="text" value="sekolah" placeholder="mis. sekolah, restoran, perusahaan" required />
+      </div>
+      <div class="form-col-city">
+        <label for="scrape-city">Kota</label>
+        <input id="scrape-city" type="text" value="salatiga" placeholder="mis. salatiga, semarang, jakarta" required />
+      </div>
+      <div class="form-col-max">
+        <label for="scrape-max">Maks. hasil</label>
+        <input id="scrape-max" type="number" value="50" min="1" max="100" placeholder="50" required />
+      </div>
+      <div class="form-col-btn">
+        <button type="button" id="btn-start-scrape" class="btn btn-primary">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.35-4.35" />
+          </svg>
+          <span>Mulai Scrape</span>
+        </button>
+      </div>
     </form>
+    <!-- Smart Pre-flight info alert -->
+    <div id="scrape-existing-alert" class="scrape-existing-alert hidden">
+      <div class="alert-content">
+        <svg class="alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="16" x2="12" y2="12"></line>
+          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>
+        <span>Data <strong id="alert-category">-</strong> di kota <strong id="alert-city">-</strong> sudah ada <strong id="alert-count">0</strong> Leads tersimpan di database.</span>
+      </div>
+      <button type="button" id="btn-view-existing-leads" class="btn btn-ghost btn-sm alert-action-btn">
+        <span>Lihat Hasil Leads</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+          <polyline points="12 5 19 12 12 19"></polyline>
+        </svg>
+      </button>
+    </div>
     <div class="browser-row">
       <button type="button" id="btn-browser-login" class="btn btn-ghost btn-sm"
         style="display:inline-flex; align-items:center; gap:6px;">

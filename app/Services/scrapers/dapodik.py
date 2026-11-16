@@ -96,88 +96,8 @@ class DapodikScraper(BaseScraper):
             self.emit_progress(0, 0, "Tidak ada lead Sekolah dengan NPSN/kepsek kosong — enrichment dilewati.")
             return leads
 
-        self.emit_progress(0, len(self.targets), f"Membuka browser Dapodik untuk {len(self.targets)} sekolah…")
-
-        clean_id = re.sub(r'[^a-zA-Z0-9]+', '_', self.job_id or uuid.uuid4().hex[:8])
-        worker_dir = os.path.join(tempfile.gettempdir(), "playwright_dapodik_workers", f"worker_{clean_id}")
-        os.makedirs(worker_dir, exist_ok=True)
-
-        browser_success = False
-        try:
-            with sync_playwright() as p:
-                # Sumber tunggal argumen launch (no-sandbox & dev-shm saat di
-                # container/root — berlaku juga headful di layar virtual noVNC)
-                browser_args = build_browser_args(
-                    ["--start-maximized", "--disable-blink-features=AutomationControlled"],
-                    settings.browser_headless,
-                )
-                context = p.chromium.launch_persistent_context(
-                    user_data_dir=worker_dir,
-                    headless=settings.browser_headless,
-                    # '' → Chromium bundled Playwright (Docker); 'chrome' → Chrome sistem (lokal)
-                    channel=settings.browser_channel or None,
-                    ignore_https_errors=True,
-                    args=browser_args,
-                )
-                page = context.pages[0] if context.pages else context.new_page()
-                self._page = page
-                browser_success = True
-
-                for idx, name in enumerate(self.targets):
-                    if self.is_cancelled():
-                        break
-
-                    self.emit_progress(idx, len(self.targets), f"Mencari Dapodik ({idx + 1}/{len(self.targets)}): {name}")
-                    item = None
-                    try:
-                        item = self._lookup_school_browser(page, name)
-                    except Exception as e:
-                        self.emit_progress(len(leads), len(self.targets), f"Info pencarian '{name}': {e}")
-                        # Fallback HTTP jika ada kendala di browser
-                        try:
-                            item = self._lookup_school_http(name)
-                        except Exception:
-                            item = None
-
-                    if item and item.get("npsn"):
-                        item["nama_instansi"] = name
-                        item["kategori"] = self.category
-                        item["kota"] = self.city
-                        item["status"] = "New"
-                        leads.append(item)
-                        extra_info = []
-                        if item.get("nama_kepsek"):
-                            extra_info.append(f"Kepsek: {item['nama_kepsek']}")
-                        if item.get("email"):
-                            extra_info.append(f"Email: {item['email']}")
-                        suffix = f" | {', '.join(extra_info)}" if extra_info else ""
-                        self.emit_progress(
-                            len(leads), len(self.targets),
-                            f"Dapodik ({len(leads)}/{len(self.targets)}): {name} → NPSN {item.get('npsn')}{suffix}",
-                        )
-                    else:
-                        self.emit_progress(len(leads), len(self.targets), f"Tidak ditemukan di Dapodik: {name}")
-
-                    self.rate_limit()
-
-                self._page = None
-                try:
-                    context.close()
-                except Exception:
-                    pass
-
-        except Exception as e:
-            # Jika Playwright gagal dijalankan (misal environment headless), fallback ke HTTP
-            if not browser_success:
-                self.emit_progress(0, len(self.targets), f"Mode browser info ({e}), menggunakan koneksi direct Dapodik…")
-                return self._run_http_fallback(leads)
-
-        finally:
-            shutil.rmtree(worker_dir, ignore_errors=True)
-
-        return leads
-
-    # ---- Browser Lookup Methods ----
+        self.emit_progress(0, len(self.targets), f"Dapodik: Melengkapi {len(self.targets)} sekolah secara paralel (5 worker)...")
+        return self._run_http_fallback(leads)
 
     def _find_best_npsn(self, clean_name: str, matches: list) -> str:
         best_npsn, best_score = "", 0.0
@@ -192,32 +112,6 @@ class DapodikScraper(BaseScraper):
                 best_score = score
                 best_npsn = npsn
         return best_npsn if best_score >= NAME_THRESHOLD else ""
-
-    def _lookup_school_browser(self, page, name: str) -> dict | None:
-        """Cari 1 sekolah di referensi Kemendikdasmen via Playwright."""
-        clean_name = re.sub(r'["\']', '', name).strip()
-        url = REFERENSI_SEARCH_URL.format(keyword=urllib.parse.quote(clean_name))
-
-        page.goto(url, timeout=30000, wait_until="domcontentloaded")
-        time.sleep(1.5)
-
-        matches = _extract_search_matches(page.content())
-        if not matches:
-            tokens = [t for t in clean_name.split() if len(t) > 2]
-            if len(tokens) > 2:
-                short_q = urllib.parse.quote(" ".join(tokens[:3]))
-                page.goto(REFERENSI_SEARCH_URL.format(keyword=short_q), timeout=30000, wait_until="domcontentloaded")
-                time.sleep(1.5)
-                matches = _extract_search_matches(page.content())
-
-        best_npsn = self._find_best_npsn(clean_name, matches)
-        if not best_npsn:
-            return None
-
-        detail_url = REFERENSI_DETAIL_URL.format(npsn=best_npsn)
-        page.goto(detail_url, timeout=30000, wait_until="domcontentloaded")
-        time.sleep(1)
-        return self._parse_detail_html(page.content(), best_npsn, detail_url)
 
     @staticmethod
     def _parse_detail_html(detail_html: str, best_npsn: str = "", detail_url: str = "") -> dict:
@@ -271,16 +165,19 @@ class DapodikScraper(BaseScraper):
 
         return res
 
-    # ---- HTTP Fallback Methods ----
+    # ---- HTTP Parallel Methods ----
 
     def _run_http_fallback(self, existing_leads: list[dict]) -> list[dict]:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
         leads = list(existing_leads)
         processed_names = {l.get("nama_instansi") for l in leads}
         remaining_targets = [t for t in self.targets if t not in processed_names]
+        total = len(self.targets)
+        completed_count = len(leads)
 
-        for name in remaining_targets:
+        def _worker(name: str):
             if self.is_cancelled():
-                break
+                return None
             try:
                 item = self._lookup_school_http(name)
                 if item and item.get("npsn"):
@@ -288,11 +185,32 @@ class DapodikScraper(BaseScraper):
                     item["kategori"] = self.category
                     item["kota"] = self.city
                     item["status"] = "New"
-                    leads.append(item)
-                    self.emit_progress(len(leads), len(self.targets), f"Dapodik: {name} → NPSN {item.get('npsn')}")
+                    return item
             except Exception:
                 pass
-            self.rate_limit()
+            return None
+
+        # Gunakan 5 worker thread untuk concurrency aman tanpa 429
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            future_to_name = {executor.submit(_worker, name): name for name in remaining_targets}
+            for future in as_completed(future_to_name):
+                if self.is_cancelled():
+                    break
+                name = future_to_name[future]
+                completed_count += 1
+                try:
+                    item = future.result()
+                    if item:
+                        leads.append(item)
+                        extra = []
+                        if item.get("nama_kepsek"): extra.append(f"Kepsek: {item['nama_kepsek']}")
+                        if item.get("email"): extra.append(f"Email: {item['email']}")
+                        sfx = f" ({', '.join(extra)})" if extra else ""
+                        self.emit_progress(completed_count, total, f"Dapodik [{completed_count}/{total}]: {name} → NPSN {item.get('npsn')}{sfx}")
+                    else:
+                        self.emit_progress(completed_count, total, f"Dapodik [{completed_count}/{total}]: {name} (selesai)")
+                except Exception:
+                    pass
 
         return leads
 

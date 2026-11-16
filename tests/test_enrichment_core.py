@@ -237,6 +237,14 @@ def test_get_job_incomplete_leads(job_db: Session):
     assert "npsn" in found[0]["missing_fields"]
     assert "nama_kepsek" in found[0]["missing_fields"]
 
+    # Test juga untuk job gmaps (seed job)
+    gmaps_job = store.create_job(job_db, "gmaps", "sekolah", "salatiga", 100)
+    res_gmaps = get_job_incomplete_leads(gmaps_job.id, _={}, db=job_db)
+    assert res_gmaps["job_id"] == gmaps_job.id
+    assert res_gmaps["total"] >= 1
+    found_g = [x for x in res_gmaps["items"] if x["nama_instansi"] == "SMP N 1 Salatiga"]
+    assert len(found_g) == 1
+
 
 def test_generate_job_id_format():
     """Format ID job harus SCRP_{kategori[:14]}_{YYYYMMDD_HHMMSS} dan panjang <= 35."""

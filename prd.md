@@ -190,7 +190,7 @@ Prinsip umum: **Google Maps adalah sumber utama (seed) untuk semua segmen** — 
 
 ## 11. Desain UI/UX
 
-Hijau (#0E2A1E sidebar, #2F6B4F tombol, #F2F6F3 paper), simpel fungsional anti-AI-slop, Space Grotesk+system-ui+mono, inline SVG icons. 6 halaman: Login, Dashboard, Scrape, Enrichment (monitoring — aksi mulai enrichment dari tombol ⚡ Enrich per baris job di halaman Scrape), Results, Review Duplikat.
+Hijau (#0E2A1E sidebar, #2F6B4F tombol, #F2F6F3 paper), simpel fungsional anti-AI-slop, Space Grotesk+system-ui+mono, inline SVG icons. 5 modul utama: Login, Dashboard, Scrape (terintegrasi full auto-chain background enrichment & dropdown data belum lengkap), Results, Review Duplikat, Kelola Pengguna.
 
 ---
 
@@ -203,9 +203,9 @@ Hijau (#0E2A1E sidebar, #2F6B4F tombol, #F2F6F3 paper), simpel fungsional anti-A
 - Job bisa di-cancel via Stop; job yang prosesnya mati (browser ditutup/server restart) dikoreksi otomatis → `error`
 - Progress realtime via polling `/api/jobs` (interval 3 detik)
 - Kolom Ditemukan menampilkan format informatif misal `98/100 dari 120` (terambil / target dari total listing GMaps)
-- Pemisahan riwayat job: menu Scrape khusus GMaps, menu Enrichment khusus Enrichment
-- Tombol ⚡ Enrich di menu Scrape langsung mengarahkan (direct) ke form menu Enrichment
-- Dropdown "Data Belum Lengkap" di Riwayat Enrichment menjabarkan lokasi dan field yang belum terisi dengan tombol isi manual
+- Integrasi pipeline: Scrape Google Maps otomatis auto-chain ke Dapodik & Google Search di latar belakang
+- Tombol Enrich di menu Scrape untuk pengulangan (rerun) proses enrichment pada job terkait
+- Dropdown "Belum Terenrich" di Riwayat Job Scrape menjabarkan lokasi dan field yang belum terisi dengan tombol lengkapi otomatis & isi manual
 - Hapus riwayat job per baris (lead yang tersimpan tidak ikut terhapus)
 - Enrichment tanpa batas "maks" — otomatis memproses semua kandidat seed yang field-nya kosong
 - Duplikat fuzzy terdeteksi di Review Duplikat

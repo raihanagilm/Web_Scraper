@@ -251,7 +251,6 @@ async function loadAllViews() {
   const views = [
     { name: "dashboard", url: "views/dashboard.html" },
     { name: "scrape", url: "views/scrape.html" },
-    { name: "enrichment", url: "views/enrichment.html" },
     { name: "results", url: "views/results.html" },
     { name: "dedup", url: "views/dedup.html" },
     { name: "users", url: "views/users.html" },
@@ -417,6 +416,7 @@ window.addEventListener("keydown", (e) => {
 
 // ---- Router ----
 function navigate(page) {
+  if (page === "enrichment") page = "scrape";
   closeMobileDrawer();
   document.querySelectorAll(".page").forEach((p) => p.classList.add("hidden"));
   const el = $(`#page-${page}`) || $("#page-dashboard");
@@ -427,7 +427,6 @@ function navigate(page) {
   location.hash = page;
   if (page === "dashboard") loadDashboard();
   if (page === "scrape") { loadJobs(); loadBrowserStatus(); loadEnrichmentMeta(); }
-  if (page === "enrichment") { loadEnrichmentMeta(); loadEnrichmentJobs(); }
   if (page === "results") { loadFilters(); loadLeads(); }
   if (page === "dedup") loadDedup();
   if (page === "users") loadUsers();
@@ -438,6 +437,7 @@ document.querySelectorAll(".nav-item").forEach((b) =>
 );
 window.addEventListener("hashchange", () => {
   const page = location.hash.replace("#", "");
+  if (page === "enrichment") return navigate("scrape");
   if (document.body.contains($(`#page-${page}`))) navigate(page);
 });
 
@@ -499,12 +499,8 @@ async function pollBackgroundJobs() {
       await refreshDedupBadge({ notify: true, triggerSource: `Enrichment Leads (${enrichSourceLabel})` });
     }
 
-    if (!$("#page-scrape").classList.contains("hidden")) {
+    if ($("#page-scrape") && !$("#page-scrape").classList.contains("hidden")) {
       renderJobs(allJobs);
-    }
-    if (!$("#page-enrichment").classList.contains("hidden")) {
-      lastEnrichJobs = enrichJobs;
-      renderEnrichmentJobs(enrichJobs);
     }
 
     const hasActive = allJobs.some((j) => j.status === "running" || j.status === "pending");
@@ -597,6 +593,59 @@ function setupScrapeEvents() {
       });
     }
   });
+
+  // Smart Pre-flight Check: Deteksi jika kategori & kota sudah ada di database
+  let preflightTimer = null;
+  async function checkExistingLeads() {
+    const kw = ($("#scrape-keyword")?.value || "").trim().toLowerCase();
+    const city = ($("#scrape-city")?.value || "").trim().toLowerCase();
+    const alertBox = $("#scrape-existing-alert");
+    if (!alertBox) return;
+    if (!kw || !city) {
+      alertBox.classList.add("hidden");
+      return;
+    }
+    try {
+      const res = await api(`/api/leads?category=${encodeURIComponent(kw)}&kota=${encodeURIComponent(city)}&size=1`);
+      if (res && res.total > 0) {
+        const catEl = $("#alert-category");
+        const cityEl = $("#alert-city");
+        const countEl = $("#alert-count");
+        if (catEl) catEl.textContent = kw;
+        if (cityEl) cityEl.textContent = city;
+        if (countEl) countEl.textContent = res.total;
+        alertBox.classList.remove("hidden");
+      } else {
+        alertBox.classList.add("hidden");
+      }
+    } catch {
+      alertBox.classList.add("hidden");
+    }
+  }
+
+  $("#scrape-keyword")?.addEventListener("input", () => {
+    clearTimeout(preflightTimer);
+    preflightTimer = setTimeout(checkExistingLeads, 400);
+  });
+  $("#scrape-city")?.addEventListener("input", () => {
+    clearTimeout(preflightTimer);
+    preflightTimer = setTimeout(checkExistingLeads, 400);
+  });
+  $("#btn-view-existing-leads")?.addEventListener("click", () => {
+    const kw = ($("#scrape-keyword")?.value || "").trim();
+    const city = ($("#scrape-city")?.value || "").trim();
+    navigate("results");
+    setTimeout(() => {
+      const fCat = $("#filter-category");
+      const fCity = $("#filter-city");
+      if (fCat && kw) fCat.value = kw;
+      if (fCity && city) fCity.value = city;
+      loadLeads();
+    }, 150);
+  });
+
+  // Periksa data awal saat load
+  setTimeout(checkExistingLeads, 500);
 
   // Table header sort
   document.querySelectorAll("#page-scrape th[data-jsort]").forEach((th) => {
@@ -921,12 +970,11 @@ async function loadEnrichmentJobs(silent = false) {
   }
 }
 
-// Format tampilan Ditemukan / Terambil: misal "12/50 dari 120"
+// Format tampilan Ditemukan / Terambil: misal "44/50 dari 56" (PRD §12 Kriteria Penerimaan)
 function formatJobResult(j) {
   const taken = (j.items_created || 0) + (j.items_updated || 0);
   const progress = parseInt(j.progress, 10) || 0;
-  // Selalu gunakan nilai tertinggi antara data terambil (items_created) dan progres ekstraksi,
-  // sehingga bila user klik Stop (cancelled), jumlah data riil yang sudah terambil tetap tampil (misal 20/43).
+  // Gunakan nilai tertinggi antara data terambil (items_created) dan progres ekstraksi
   const currentCount = Math.max(progress, taken);
 
   const target = parseInt(j.max_results, 10) || 0;
@@ -1146,8 +1194,9 @@ async function loadIncompleteLeads(jobId) {
             },
           });
           startPolling();
-          loadEnrichmentJobs();
+          loadJobs();
           alert(`Job enrichment baru dengan sumber ${chosenSource.toUpperCase()} berhasil dibuat dan sedang berjalan!`);
+          setTimeout(() => loadIncompleteLeads(jobId), 1500);
         } catch (ex) {
           alert("Gagal memulai enrichment: " + ex.message);
         } finally {
@@ -1258,7 +1307,14 @@ function renderJobs(jobs) {
       const actions = [
         actionBtn,
         isSeed && isTerminalState
-          ? `<button class="btn btn-ghost btn-sm" data-enrich="${j.id}" title="Pindah ke menu Enrichment utk kategori & kota job ini" style="display:inline-flex;align-items:center;gap:4px;">${ICONS.zap}<span>Enrich</span></button>` : "",
+          ? `<button class="btn btn-ghost btn-sm" data-enrich="${j.id}" title="Ulangi proses enrichment untuk melengkapi data leads ini" style="display:inline-flex;align-items:center;gap:4px;">${ICONS.zap}<span>Enrich</span></button>` : "",
+        isSeed && isTerminalState
+          ? `<button class="btn btn-ghost btn-sm" data-incompletetoggle="${j.id}" title="Tampilkan/sembunyikan data yang belum lengkap atau belum terenrich" style="display:inline-flex;align-items:center;gap:4px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+              <span>Belum Terenrich</span>
+            </button>` : "",
         `<button class="btn btn-ghost-danger btn-sm" data-deljob="${j.id}" title="Hapus riwayat job" style="display:inline-flex;align-items:center;gap:4px;">${ICONS.trash}<span>Hapus</span></button>`,
       ].filter(Boolean).join(" ");
 
@@ -1275,6 +1331,13 @@ function renderJobs(jobs) {
       </td>
       <td class="mono">${formatJobResult(j)}</td>
       <td class="row-actions">${actions}</td>
+    </tr>
+    <tr class="incomplete-row hidden" data-incompleterow="${j.id}">
+      <td colspan="8">
+        <div class="incomplete-box" data-incompletebox="${j.id}">
+          <div class="incomplete-loading muted">Memuat data belum lengkap…</div>
+        </div>
+      </td>
     </tr>`;
     })
     .join("") || `<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">Belum ada job Google Maps</td></tr>`;
@@ -1292,10 +1355,10 @@ function renderJobs(jobs) {
     b.addEventListener("click", () => deleteJob(b.dataset.deljob, loadJobs, b))
   );
   document.querySelectorAll("#page-scrape [data-enrich]").forEach((b) =>
-    b.addEventListener("click", () => {
-      const job = lastJobs.find((j) => j.id === b.dataset.enrich);
-      if (job) goToEnrichmentFromJob(job);
-    })
+    b.addEventListener("click", () => rerunJobEnrichment(b.dataset.enrich, b))
+  );
+  document.querySelectorAll("#page-scrape [data-incompletetoggle]").forEach((b) =>
+    b.addEventListener("click", () => toggleIncompleteRow(b.dataset.incompletetoggle))
   );
   document.querySelectorAll("#page-scrape [data-rerun]").forEach((b) =>
     b.addEventListener("click", () => rerunJob(b.dataset.rerun, b))
@@ -1305,10 +1368,42 @@ function renderJobs(jobs) {
   );
 }
 
-// Membuka modal pilihan sumber enrichment untuk job terkait
-function goToEnrichmentFromJob(job) {
+// Ulangi proses enrichment untuk job scrape terkait
+async function rerunJobEnrichment(jobId, triggerBtn = null) {
+  const job = lastJobs.find((j) => j.id === jobId);
   if (!job) return;
-  openEnrichModal(job);
+  const cat = (job.category || "").toLowerCase();
+  const isSchool = cat.includes("sekolah") || cat.includes("sd") || cat.includes("smp") || cat.includes("sma") || cat.includes("smk") || cat.includes("madrasah") || cat.includes("pesantren");
+  const sourcesText = isSchool ? "Dapodik Kemendikbud & Google Search" : "Google Search";
+
+  const ok = await confirmDialog(
+    `Ulangi proses enrichment (${sourcesText}) untuk melengkapi data leads '${job.category}' di kota '${job.city}'?`
+  );
+  if (!ok) return;
+  if (triggerBtn) setButtonLoading(triggerBtn, true, "Enriching...");
+  try {
+    unlockAudio();
+    await api("/api/enrich", {
+      method: "POST",
+      body: {
+        category: job.category,
+        city: job.city,
+        enrichment_source: isSchool ? "dapodik" : "google",
+        seed_job_id: job.id,
+      },
+    });
+    startPolling();
+    loadJobs();
+    alert(`Proses enrichment ulang (${sourcesText}) berhasil dimulai di latar belakang!`);
+    const incRow = document.querySelector(`[data-incompleterow="${jobId}"]`);
+    if (incRow && !incRow.classList.contains("hidden")) {
+      setTimeout(() => loadIncompleteLeads(jobId), 1500);
+    }
+  } catch (ex) {
+    alert("Gagal memulai enrichment: " + ex.message);
+  } finally {
+    if (triggerBtn) setButtonLoading(triggerBtn, false);
+  }
 }
 
 // Lengkapi data jika total_found > progress (misal 5/5 dari 120).

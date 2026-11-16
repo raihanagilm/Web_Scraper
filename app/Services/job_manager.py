@@ -206,9 +206,71 @@ class JobManager:
                 f"Job dihentikan — {created} baru, {updated} update tercatat sebelum berhenti.",
             )
         else:
+            if scraper.source == "gmaps":
+                self._auto_chain_enrichment(db, job_id, scraper)
             current_job = store.get_job(db, job_id)
             preserved_found = max(current_job.total_found if current_job else 0, len(raw_items))
             store.update_job(db, job_id, status="completed", progress=len(raw_items), total_found=preserved_found, finished_at=datetime.utcnow())
+
+    def _auto_chain_enrichment(self, db, job_id: str, scraper) -> None:
+        """Pipeline Auto-Chain otomatis: melengkapi data via Dapodik (paralel) & Google Search."""
+        if scraper.is_cancelled():
+            return
+
+        cat = (scraper.category or "").lower().strip()
+        city = (scraper.city or "").lower().strip()
+
+        # 1. Khusus Sekolah: Auto-run Dapodik Kemendikdasmen (NPSN & Kepala Sekolah & Email) secara paralel
+        if cat in ["sekolah", "school"]:
+            dapodik_cand = enrich.find_incomplete_leads(
+                db, source="dapodik", category=cat, city=city, limit=scraper.max_results or 100
+            )
+            if dapodik_cand and not scraper.is_cancelled():
+                targets = [c.nama_instansi for c in dapodik_cand]
+                self._on_progress(job_id, 0, len(targets), f"Auto-Enrichment: Melengkapi {len(targets)} sekolah via Dapodik (paralel)...")
+                try:
+                    dap_scraper = DapodikScraper(
+                        category=cat, city=city, targets=targets,
+                        job_id=job_id, user_id=scraper.user_id,
+                    )
+                    dap_scraper.on_progress = lambda prog, tot, msg: self._on_progress(job_id, prog, tot, f"[Dapodik] {msg}")
+                    dap_items = dap_scraper.run()
+                    if dap_items:
+                        res = enrich.match_and_merge(
+                            db, source="dapodik", raw_items=dap_items,
+                            progress_cb=lambda prog, tot, msg: self._on_progress(job_id, prog, tot, f"[Dapodik] {msg}"),
+                            category=cat, city=city, limit=len(targets),
+                        )
+                        store.append_job_log(db, job_id, f"Auto-Enrichment Dapodik: {res['matched']} sekolah terisi NPSN/Kepsek/Email.")
+                except Exception as e:
+                    store.append_job_log(db, job_id, f"Auto-Enrichment Dapodik info: {e}")
+
+        # 2. Google Search untuk SEMUA lead yang masih kekurangan kontak (website / telp / sosmed / email)
+        # Memproses seluruh data kandidat tanpa batasan kuota terpotong
+        if not scraper.is_cancelled():
+            google_cand = enrich.find_incomplete_leads(
+                db, source="google", category=cat, city=city, limit=scraper.max_results or 100
+            )
+            needed = [c for c in google_cand if not c.website or not (c.instagram or c.facebook or c.email)]
+            if needed and not scraper.is_cancelled():
+                targets_g = [c.nama_instansi for c in needed]
+                self._on_progress(job_id, 0, len(targets_g), f"Auto-Enrichment: Melacak kontak {len(targets_g)} data via Google Search...")
+                try:
+                    g_scraper = GoogleScraper(
+                        category=cat, city=city, targets=targets_g, max_results=len(targets_g),
+                        job_id=job_id, user_id=scraper.user_id,
+                    )
+                    g_scraper.on_progress = lambda prog, tot, msg: self._on_progress(job_id, prog, tot, f"[Google] {msg}")
+                    g_items = g_scraper.run()
+                    if g_items:
+                        res_g = enrich.match_and_merge(
+                            db, source="google", raw_items=g_items,
+                            progress_cb=lambda prog, tot, msg: self._on_progress(job_id, prog, tot, f"[Google] {msg}"),
+                            category=cat, city=city, limit=len(targets_g),
+                        )
+                        store.append_job_log(db, job_id, f"Auto-Enrichment Google: {res_g['matched']} data kontak/sosmed dilengkapi.")
+                except Exception as e:
+                    store.append_job_log(db, job_id, f"Auto-Enrichment Google info: {e}")
 
     def _run_enrichment(self, db, job_id: str, scraper, raw_items) -> None:
         """Enrichment (dapodik/google): cocokkan hasil ke lead seed
