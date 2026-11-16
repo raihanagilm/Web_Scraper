@@ -29,11 +29,6 @@
 ├── scraper_gmaps_sekolah.py        # Skrip legacy prototype GMaps (bukan dipakai app)
 ├── .env.example                    # Template konfigurasi (salurannya ada di .env — JANGAN commit .env)
 ├── .gitignore
-├── Dockerfile                      # Image container: FastAPI + Playwright Chromium + Xvfb/noVNC (deployment)
-├── docker-compose.yml              # Orkestrasi container: app 8001→8000 + noVNC 8002 + cloudflared tunnel, shm 1gb
-├── docker/
-│   └── entrypoint.sh               # Entrypoint container: nyalakan Xvfb + openbox + x11vnc + noVNC → exec uvicorn (fallback headless bila gagal)
-├── .dockerignore                   # Pengecualian build context (secret .env, venv, scratch, dokumen)
 ├── .vscode/
 │   └── settings.json               # VS Code: interpreter venv + cline.hooks (workflow)
 ├── tools/
@@ -103,6 +98,7 @@
 │   ├── index.html                  # Login + app shell (dashboard/scrape/enrichment/results/dedup)
 │   ├── app.js                      # Logika frontend: fetch API, render, WebSocket progress
 │   ├── style.css                   # Tema hijau Edtekno (PRD §11)
+│   ├── favicon.svg                 # Ikon resmi favicon browser
 │   └── audio/                      # Sound-effect UI frontend (assets statis)
 └── tests/
     ├── test_auth.py                        # Smoke test auth
@@ -294,9 +290,6 @@ Alur konseptual PRD v1.1 (lihat [prd.md](prd.md) §6.2); implementasi aktual di 
 | `routes/lead.py` | Router leads management `/api` |
 | `public/app.js` | Logika frontend: fetch API, render, polling job, dialog dedup & incomplete |
 | `tests/test_auth.py` | Smoke test alur login |
-| `Dockerfile` | Image deployment: python:3.11-slim + deps + `playwright install --with-deps chromium` + noVNC stack; CMD `uvicorn app.main:app` |
-| `docker/entrypoint.sh` | **ENTRYPOINT container (monitor browser)**: nyalakan `Xvfb :99` → `openbox` → `x11vnc` → `websockify` → `exec` CMD |
-| `docker-compose.yml` | Jalur deployment: service `web-scraper` (8001 → 8000, 8002 → 8002) |
 
 ---
 
@@ -332,14 +325,12 @@ Saat menambah/memindah/menghapus file, **perbarui blok ini** (dan pohon folder d
 
 <!-- FILE-INDEX-START -->
 .clinerules/rules.md
-.dockerignore
 .env.example
 .gitattributes
 .githooks/pre-commit
 .gitignore
 .vscode/settings.json
 AGENTS.md
-Dockerfile
 README.md
 app/Controllers/AuthController.py
 app/Controllers/LeadController.py
@@ -379,11 +370,10 @@ database/migrations/__init__.py
 database/migrations/migrate_phase1.py
 database/seeders/__init__.py
 database/seeders/user_seeder.py
-docker-compose.yml
-docker/entrypoint.sh
 file.md
 prd.md
 public/app.js
+public/favicon.svg
 public/index.html
 public/style.css
 pyproject.toml

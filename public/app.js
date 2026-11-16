@@ -158,10 +158,14 @@ function showToast({ title, message, type = "info", countBadge = null, duration 
   }
 }
 
+// ---- Base Path & URL helper (support root / & subpath /scraper) ----
+const BASE_PATH = window.location.pathname.startsWith("/scraper") ? "/scraper" : "";
+const url = (p) => (p.startsWith("http") || (BASE_PATH && p.startsWith(BASE_PATH))) ? p : `${BASE_PATH}${p}`;
+
 // ---- Sound effects (diputar saat job selesai / gagal) ----
 const sfx = {
-  done: new Audio("/audio/anjir-wibu.mp3"),
-  fail: new Audio("/audio/faaah.mp3"),
+  done: new Audio(url("/audio/anjir-wibu.mp3")),
+  fail: new Audio(url("/audio/faaah.mp3")),
 };
 sfx.done.preload = "auto";
 sfx.fail.preload = "auto";
@@ -191,7 +195,7 @@ function playSound(kind) {
 
 // ---- API helper ----
 async function api(path, opts = {}) {
-  const res = await fetch(path, {
+  const res = await fetch(url(path), {
     credentials: "same-origin",
     headers: opts.body && !(opts.body instanceof FormData)
       ? { "Content-Type": "application/json" }
@@ -1288,7 +1292,8 @@ function novncTargetUrl(info) {
   if (!info || !info.available) return "";
   if (info.url) return info.url;
   const proto = location.protocol === "https:" ? "https:" : "http:";
-  return `${proto}//${location.host}/novnc/vnc.html?autoconnect=1&resize=scale&path=websockify`;
+  const wsPath = BASE_PATH ? `${BASE_PATH.slice(1)}/websockify` : "websockify";
+  return `${proto}//${location.host}${BASE_PATH}/novnc/vnc.html?autoconnect=1&resize=scale&path=${encodeURIComponent(wsPath)}`;
 }
 
 function renderMonitorButton(info) {
@@ -1974,7 +1979,7 @@ $("#btn-export").addEventListener("click", async () => {
   const btn = $("#btn-export");
   setButtonLoading(btn, true, "Mengekspor...");
   try {
-    const res = await fetch(`/api/export?${leadParams()}`, { credentials: "same-origin" });
+    const res = await fetch(url(`/api/export?${leadParams()}`), { credentials: "same-origin" });
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
       alert(j.detail || "Export gagal");
@@ -1994,7 +1999,7 @@ $("#btn-export-csv").addEventListener("click", async () => {
   const btn = $("#btn-export-csv");
   setButtonLoading(btn, true, "Mengekspor...");
   try {
-    const res = await fetch(`/api/export-csv?${leadParams()}`, { credentials: "same-origin" });
+    const res = await fetch(url(`/api/export-csv?${leadParams()}`), { credentials: "same-origin" });
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
       alert(j.detail || "Export CSV gagal");

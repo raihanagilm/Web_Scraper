@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -28,6 +29,7 @@ app = FastAPI(title="Edtekno Lead Scraper", version="1.0.0", lifespan=lifespan)
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.session_secret,
+    session_cookie="scraper_session",
     max_age=86400,
     same_site="lax",
     https_only=False,
@@ -40,6 +42,14 @@ app.include_router(api_router, prefix="/api")
 @app.get("/api/health")
 def health() -> dict:
     return {"status": "ok", "app": "Edtekno Lead Scraper"}
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    fav_path = ROOT_DIR / "public" / "favicon.svg"
+    if fav_path.is_file():
+        return FileResponse(fav_path, media_type="image/svg+xml")
+    return Response(status_code=204)
 
 
 # noVNC reverse proxy WebSocket & static mounting

@@ -11,6 +11,7 @@ tanpa bentrok file lock (ProcessSingleton).
 
 import os
 import re
+import glob
 import shutil
 import logging
 import tempfile
@@ -110,6 +111,18 @@ def build_browser_args(args: Optional[list] = None, headless: Optional[bool] = N
     return cmd_args
 
 
+def find_playwright_executable() -> Optional[str]:
+    """Cari biner Chrome lengkap bila berjalan di Linux untuk menghindari crash headless-shell."""
+    env_path = os.environ.get("BROWSER_EXECUTABLE_PATH", "").strip()
+    if env_path and os.path.isfile(env_path):
+        return env_path
+    if os.name != "nt":
+        matches = glob.glob(os.path.expanduser("~/.cache/ms-playwright/chromium-*/chrome-linux64/chrome"))
+        if matches:
+            return matches[-1]
+    return None
+
+
 def launch_login_browser_context(
     playwright_instance,
     job_id: Optional[str] = None,
@@ -140,8 +153,9 @@ def launch_login_browser_context(
     """
     if headless is None:
         headless = settings.browser_headless
-    # channel=None → Chromium bundled Playwright (Docker); "chrome" → Chrome sistem (lokal)
-    channel = settings.browser_channel or None
+    exec_path = find_playwright_executable()
+    # channel=None bila executable_path terdefinisi atau Chromium bundled; "chrome" → Chrome sistem lokal
+    channel = None if exec_path else (settings.browser_channel or None)
 
     cmd_args = build_browser_args(args, headless)
 
@@ -151,6 +165,7 @@ def launch_login_browser_context(
     try:
         context = playwright_instance.chromium.launch_persistent_context(
             user_data_dir=primary_dir,
+            executable_path=exec_path,
             headless=headless,
             channel=channel,
             ignore_https_errors=True,
@@ -168,6 +183,7 @@ def launch_login_browser_context(
 
     context = playwright_instance.chromium.launch_persistent_context(
         user_data_dir=worker_dir,
+        executable_path=exec_path,
         headless=headless,
         channel=channel,
         ignore_https_errors=True,
