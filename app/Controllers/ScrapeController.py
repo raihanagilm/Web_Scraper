@@ -1,7 +1,7 @@
 """ScrapeController — Menangani logika scrape, enrichment, monitoring browser, dan jobs."""
 import threading
 from typing import Optional
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
