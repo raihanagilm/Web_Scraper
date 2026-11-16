@@ -2,15 +2,15 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from backend.models import Category, City, Lead, Base
-from backend.services.code_generator import (
+from app.Models import Category, City, Lead, Base
+from app.Services.code_generator import (
     generate_lead_code,
     generate_category_code,
     generate_city_code,
     clean_code_segment,
 )
-from backend.services.cleaner import normalize_emails, clean_social_url, clean_lead
-from backend.services.dedup_service import _lead_fingerprints
+from app.Services.cleaner import normalize_emails, clean_social_url, clean_lead
+from app.Services.dedup_service import _lead_fingerprints
 
 
 @pytest.fixture()
@@ -137,7 +137,7 @@ def test_clean_lead_auto_relocates_misplaced_social():
 
 
 def test_dapodik_does_not_extract_operator_as_kepsek():
-    from backend.services.scrapers.dapodik import DapodikScraper
+    from app.Services.scrapers.dapodik import DapodikScraper
     scraper = DapodikScraper()
     # Snippet dari referensi.data.kemendikdasmen.go.id
     html = """

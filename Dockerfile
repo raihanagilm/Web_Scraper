@@ -48,8 +48,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # ---- Application ----
-COPY backend ./backend
-COPY frontend ./frontend
+COPY app ./app
+COPY routes ./routes
+COPY database ./database
+COPY public ./public
+COPY run.py ./run.py
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
@@ -59,4 +62,4 @@ EXPOSE 8000 8002
 # Entrypoint menyalakan display stack lalu `exec` CMD (uvicorn).
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 # Bind 0.0.0.0 agar bisa diakses dari device lain di jaringan LAN/VPS
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

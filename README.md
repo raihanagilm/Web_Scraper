@@ -88,16 +88,20 @@ flowchart TD
 
 ## 📂 Struktur Folder & Pola MVC
 
-Proyek ini menerapkan pemisahan tanggung jawab yang ketat mengikuti pola **Model-View-Controller (MVC)**:
+Proyek ini menerapkan pemisahan tanggung jawab yang ketat mengikuti pola **Universal Laravel Pattern / Clean Architecture**:
 
 ```
 Web_Scraper/
-├── backend/
-│   ├── main.py                     # Entry point FastAPI, lifespan, mount router & frontend
+├── app/
+│   ├── main.py                     # Entry point FastAPI, lifespan, mount router & public
 │   ├── config.py                   # Konfigurasi aplikasi dari environment variable (.env)
-│   ├── deps.py                     # Dependency injection untuk validasi sesi auth
-│   ├── seed.py                     # Inisialisasi akun administrator awal
-│   ├── models/                     # [MVC: MODEL] Definisi tabel SQLAlchemy
+│   ├── Controllers/                # [MVC: CONTROLLER] Logika controller
+│   │   ├── AuthController.py       # Login, logout, me
+│   │   ├── ScrapeController.py     # Scrape seed, enrichment, jobs, status browser
+│   │   └── LeadController.py       # Leads CRUD, statistik, export Excel/CSV, dedup, import
+│   ├── Middleware/                 # [MVC: MIDDLEWARE] Middleware & auth dependency
+│   │   └── auth_middleware.py      # require_auth dependency validasi sesi cookie
+│   ├── Models/                     # [MVC: MODEL] Definisi tabel SQLAlchemy (lihat database.md)
 │   │   ├── base.py                 # Engine database, SessionLocal, SSL config TiDB
 │   │   ├── user.py                 # Tabel users
 │   │   ├── category.py             # Tabel categories (lookup kategori ternormalisasi)
@@ -105,30 +109,37 @@ Web_Scraper/
 │   │   ├── lead.py                 # Tabel leads (prospek utama + multi-medsos + unique constraint)
 │   │   ├── scrape_job.py           # Tabel scrape_jobs (pelacakan status & progres job)
 │   │   └── merge_history.py        # Tabel merge_history (riwayat penggabungan duplikat)
-│   ├── controllers/                # [MVC: CONTROLLER] Route handler & endpoint API
-│   │   ├── auth_routes.py          # /api/auth/login, /api/auth/logout, /api/auth/me
-│   │   ├── scrape_routes.py        # /api/scrape, /api/enrich, /api/jobs, /api/sources
-│   │   └── lead_routes.py          # /api/leads, /api/stats, /api/export, /api/duplicates
-│   ├── services/                   # [MVC: BUSINESS LOGIC] Logika bisnis & pengolahan data
-│   │   ├── auth_service.py         # Verifikasi & hashing password bcrypt
-│   │   ├── cleaner.py              # Normalisasi telepon (628), nama, website, email
-│   │   ├── code_generator.py       # Pembuat kode bisnis terstruktur (LD-, KAT-, K-)
-│   │   ├── storage_service.py      # Operasi database, upsert, query leads, & job tracking
-│   │   ├── job_manager.py          # Thread runner, status job, cancelation, & watchdog
-│   │   ├── enrichment_service.py   # Fuzzy matching & field-level merging
-│   │   ├── dedup_service.py        # Algoritma pencarian duplikat & resolusi merge
-│   │   ├── exporter.py             # Generator Excel profesional (.xlsx) & CSV
-│   │   ├── importer.py             # Parser impor data CSV
-│   │   └── scrapers/               # Mesin pengumpul data publik
-│   │       ├── base.py             # BaseScraper: rate limit 1-3 detik, cancel signal
-│   │       ├── gmaps.py            # Playwright Google Maps Scraper (Seed)
-│   │       ├── dapodik.py          # Scraper detail Dapodik Kemendikbud
-│   │       └── google.py           # Scraper pencarian kontak Google / DuckDuckGo
-│   └── audio/                      # Aset efek audio untuk interaksi UI frontend
-├── frontend/                       # [MVC: VIEW] Antarmuka Single Page Application
+│   └── Services/                   # [MVC: BUSINESS LOGIC] Logika bisnis & pengolahan data
+│       ├── auth_service.py         # Verifikasi & hashing password bcrypt
+│       ├── browser_profile.py      # Kloning profil login browser ke Playwright
+│       ├── cleaner.py              # Normalisasi telepon (628), nama, website, email
+│       ├── code_generator.py       # Pembuat kode bisnis terstruktur (LD-, KAT-, K-)
+│       ├── storage_service.py      # Operasi database, upsert, query leads, & job tracking
+│       ├── job_manager.py          # Thread runner, status job, cancelation, & watchdog
+│       ├── enrichment_service.py   # Fuzzy matching & field-level merging
+│       ├── dedup_service.py        # Algoritma pencarian duplikat & resolusi merge
+│       ├── exporter.py             # Generator Excel profesional (.xlsx) & CSV
+│       ├── importer.py             # Parser impor data CSV
+│       └── scrapers/               # Mesin pengumpul data publik
+│           ├── base.py             # BaseScraper: rate limit 1-3 detik, cancel signal
+│           ├── gmaps.py            # Playwright Google Maps Scraper (Seed)
+│           ├── dapodik.py          # Scraper detail Dapodik Kemendikbud
+│           └── google.py           # Scraper pencarian kontak Google / DuckDuckGo
+├── routes/                         # [ROUTER] Deklarasi endpoint API
+│   ├── api.py                      # Aggregator router (/api)
+│   ├── auth.py                     # /api/auth/login, /api/auth/logout, /api/auth/me
+│   ├── scrape.py                   # /api/scrape, /api/enrich, /api/jobs, /api/sources
+│   └── lead.py                     # /api/leads, /api/stats, /api/export, /api/duplicates
+├── database/                       # [DATABASE] Skrip migrasi & seeder
+│   ├── migrations/                 # Skrip migrasi DDL & normalisasi database
+│   │   └── migrate_phase1.py       # Migrasi normalisasi kategori & kota
+│   └── seeders/                    # Seeder data awal
+│       └── user_seeder.py          # Inisialisasi akun administrator default
+├── public/                         # [MVC: VIEW] Antarmuka Single Page Application & Assets
 │   ├── index.html                  # Struktur halaman (Login, Dashboard, Scrape, Leads, Review)
 │   ├── app.js                      # Interaksi frontend, render tabel, polling status job
-│   └── style.css                   # Desain visual bernuansa hijau profesional Edtekno
+│   ├── style.css                   # Desain visual bernuansa hijau profesional Edtekno
+│   └── audio/                      # Aset efek audio untuk interaksi UI frontend
 ├── tools/                          # Utilitas administratif, migrasi skrip, & validator
 │   ├── check_docs_sync.py          # Validator sinkronisasi prd.md, file.md, database.md
 │   └── migrate_*.py                # Skrip migrasi DDL database
@@ -137,8 +148,7 @@ Web_Scraper/
 ├── file.md                         # Peta Modul & Alur Pemanggilan Kode (Call Graph)
 ├── database.md                     # Skema Detail Tabel, Relasi, Kolom, & Enum
 ├── requirements.txt                # Dependensi produksi Python
-├── requirements-dev.txt            # Dependensi pengujian & pengembangan
-└── run.py                          # Skrip untuk menyalakan server lokal
+└── run.py                          # Skrip untuk menyalakan server lokal (app.main:app)
 ```
 
 ---
@@ -254,13 +264,13 @@ DB_SSL_VERIFY=true
 # ============================================================
 SESSION_SECRET=your_random_secret_key
 APP_HOST=127.0.0.1
-APP_PORT=8000
+APP_PORT=1234
 
 # ============================================================
 #  Akun Administrator Awal (Diinisialisasi saat pertama kali dijalankan)
 # ============================================================
-SEED_USERNAME=your_admin_username
-SEED_PASSWORD=your_admin_password
+SEED_USERNAME=admin
+SEED_PASSWORD=123
 SEED_FULL_NAME="System Administrator"
 
 # ============================================================
@@ -304,13 +314,13 @@ Jalankan server aplikasi lokal:
 python run.py
 ```
 Aplikasi akan aktif dan dapat diakses melalui browser pada alamat:
-👉 **`http://127.0.0.1:8000`**
+👉 **`http://127.0.0.1:1234`**
 
 ### 2. Alur Penggunaan Aplikasi
 
 #### A. Masuk ke Aplikasi
-- Buka `http://127.0.0.1:8000` di peramban web.
-- Masukkan kredensial login akun administrator sesuai nilai yang Anda tentukan pada parameter `SEED_USERNAME` dan `SEED_PASSWORD` di file `.env` lokal Anda.
+- Buka `http://127.0.0.1:1234` di peramban web.
+- Masukkan kredensial login akun administrator (default: username `admin` dan password `123`, atau sesuai parameter `SEED_USERNAME` dan `SEED_PASSWORD` di file `.env` lokal Anda).
 
 #### B. Melakukan Scraping Baru (Seed)
 1. Buka menu navigasi **Mulai Scraping**.
@@ -346,15 +356,15 @@ Aplikasi akan aktif dan dapat diakses melalui browser pada alamat:
 
 ### 1. Dokumentasi Interaktif OpenAPI (Swagger & ReDoc)
 Aplikasi FastAPI menyediakan dokumentasi interaktif secara bawaan:
-- **Swagger UI**: `http://127.0.0.1:8000/docs`
-- **ReDoc**: `http://127.0.0.1:8000/redoc`
+- **Swagger UI**: `http://127.0.0.1:1234/docs`
+- **ReDoc**: `http://127.0.0.1:1234/redoc`
 
 Seluruh endpoint privat membutuhkan cookie sesi aktif (`session`).
 
 ### 2. Menjalankan Pengujian Otomatis (Unit Tests)
 Jalankan rangkaian pengujian otomatis menggunakan `pytest`:
 ```bash
-venv\Scripts\python.exe -m pytest tests/ -v
+.venv\Scripts\python.exe -m pytest tests/ -v
 ```
 
 Cakupan pengujian mencakup:

@@ -47,20 +47,19 @@
 │   └── rules.md                    # Global rules versi Cline (auto-load tiap sesi)
 ├── .githooks/
 │   └── pre-commit                  # Git hook: jalankan validator sebelum commit
-├── backend/
+├── app/
 │   ├── __init__.py
-│   ├── main.py                     # FastAPI app, lifespan (init_db + seed), mount frontend
+│   ├── main.py                     # FastAPI app, lifespan (init_db + seed), mount public
 │   ├── config.py                   # Settings dari env (pydantic-settings), database_url
-│   ├── deps.py                     # require_auth dependency (proteksi seluruh API)
-│   ├── seed.py                     # seed_default_user() — buat user admin pertama
-│   ├── migrate_phase1.py           # Migrasi DB fase 1: normalisasi kategori/kota → lookup
-│   ├── audio/                      # Sound-effect UI frontend (assets statis)
-│   ├── controllers/                # LAPIS ROUTER (MVC: Controller)
+│   ├── Controllers/                # LAPIS CONTROLLER (Universal Laravel Pattern)
 │   │   ├── __init__.py
-│   │   ├── auth_routes.py          # POST /api/auth/login, logout, GET /me
-│   │   ├── scrape_routes.py        # /sources (meta enrichment dinamis), POST /scrape, POST /enrich, GET+DELETE /jobs, GET /jobs/{id}/incomplete, cancel, browser-status (+info noVNC), browser-login (headless → tolak informatif; headful/noVNC → login via tab monitor)
-│   │   └── lead_routes.py          # /stats, /leads CRUD, /export, /export-csv, /duplicates, /import
-│   ├── models/                     # LAPIS MODEL (MVC: Model) — lihat database.md
+│   │   ├── AuthController.py       # Logika auth (login, logout, me)
+│   │   ├── ScrapeController.py     # Logika scrape, jobs, enrichment, monitoring
+│   │   └── LeadController.py       # Logika leads CRUD, stats, export, dedup, import
+│   ├── Middleware/                 # LAPIS MIDDLEWARE
+│   │   ├── __init__.py
+│   │   └── auth_middleware.py      # require_auth dependency (proteksi seluruh API)
+│   ├── Models/                     # LAPIS MODEL (SQLAlchemy Models) — lihat database.md
 │   │   ├── __init__.py             # Re-export Base, SessionLocal, get_db, init_db + semua model
 │   │   ├── base.py                 # Base, engine (pooling+SSL TiDB), SessionLocal, get_db, init_db
 │   │   ├── user.py                 # users
@@ -69,33 +68,42 @@
 │   │   ├── lead.py                 # leads (tabel utama) + unique constraint
 │   │   ├── scrape_job.py           # scrape_jobs (audit job)
 │   │   └── merge_history.py        # merge_history (audit dedup)
-│   ├── services/                   # LAPIS BUSINESS LOGIC (MVC: Service)
+│   └── Services/                   # LAPIS BUSINESS LOGIC (Services)
+│       ├── __init__.py
+│       ├── auth_service.py         # bcrypt hash/verify
+│       ├── browser_profile.py      # Kloning profil login Chrome ke worker Playwright
+│       ├── cleaner.py              # normalize_phone → 628, nama, website, email, junk domain
+│       ├── code_generator.py       # Generator business code ID terstruktur: LD-*, KAT-*, K-*
+│       ├── storage_service.py      # upsert_lead, save_raw_items, query_leads, job helpers
+│       ├── job_manager.py          # JobManager: thread background, progress, cancel, registry, watchdog reconcile
+│       ├── enrichment_service.py   # match & merge enrichment (fuzzy), find_incomplete_leads
+│       ├── dedup_service.py        # fingerprint duplikat + resolve (keep/merge/delete_all)
+│       ├── exporter.py             # export_leads (.xlsx), export_leads_csv
+│       ├── importer.py             # import_csv_text (kontingensi sumber diblokir)
+│       └── scrapers/               # MESIN SCRAPER
+│           ├── __init__.py
+│           ├── base.py             # BaseScraper: rate_limit 1–3s, cancel, emit_progress
+│           ├── gmaps.py            # GmapsScraper (SEED semua segmen) + CATEGORY_KEYWORDS
+│           ├── dapodik.py          # DapodikScraper (enrichment Sekolah: NPSN, kepsek)
+│           └── google.py           # GoogleScraper (enrichment Kontak Umum: telp/WA, email, website, sosmed)
+├── routes/                         # LAPIS ROUTER
+│   ├── __init__.py
+│   ├── api.py                      # Aggregator router (/api)
+│   ├── auth.py                     # POST /api/auth/login, logout, GET /me
+│   ├── scrape.py                   # /sources, POST /scrape, POST /enrich, jobs, browser-status, browser-login
+│   └── lead.py                     # /stats, /leads CRUD, /export, /export-csv, /duplicates, /import
+├── database/
+│   ├── migrations/                 # Migrasi DDL & normalisasi database
 │   │   ├── __init__.py
-│   │   ├── auth_service.py         # bcrypt hash/verify
-│   │   ├── browser_profile.py      # Kloning profil login Chrome bawaan (%LOCALAPPDATA%) ke worker Playwright
-│   │   ├── cleaner.py              # normalize_phone → 628, nama, website, email, junk domain
-│   │   ├── code_generator.py       # Generator business code ID terstruktur: LD-*, KAT-*, K-*
-│   │   ├── storage_service.py      # upsert_lead, save_raw_items, query_leads, job helpers
-│   │   ├── job_manager.py          # JobManager: thread background, progress, cancel, registry, watchdog reconcile
-│   │   ├── enrichment_service.py   # match & merge enrichment (fuzzy), find_incomplete_leads
-│   │   ├── dedup_service.py        # fingerprint duplikat + resolve (keep/merge/delete_all)
-│   │   ├── exporter.py             # export_leads (.xlsx), export_leads_csv
-│   │   ├── importer.py             # import_csv_text (kontingensi sumber diblokir)
-│   │   └── scrapers/               # MESIN SCRAPER
-│   │       ├── __init__.py
-│   │       ├── base.py             # BaseScraper: rate_limit 1–3s, cancel, emit_progress
-│   │       ├── gmaps.py            # GmapsScraper (SEED semua segmen) + CATEGORY_KEYWORDS
-│   │       ├── dapodik.py          # DapodikScraper (enrichment Sekolah: NPSN, kepsek)
-│   │       └── google.py           # GoogleScraper (enrichment Kontak Umum: telp/WA, email, website, sosmed via DuckDuckGo/Web)
-│   ├── data/
-│   │   ├── exports/                # Hasil export .xlsx / file CSV (dynamic, jangan di-hook)
-│   │   └── uploads/                # Upload impor CSV (optional)
-├── frontend/                       # LAPIS VIEW (MVC: View) — single-page
+│   │   └── migrate_phase1.py       # Migrasi DB fase 1: normalisasi kategori/kota → lookup
+│   └── seeders/                    # Database Seeders
+│       ├── __init__.py
+│       └── user_seeder.py          # seed_default_user() — buat user admin pertama
+├── public/                         # LAPIS VIEW (Static Assets & UI) — single-page
 │   ├── index.html                  # Login + app shell (dashboard/scrape/enrichment/results/dedup)
 │   ├── app.js                      # Logika frontend: fetch API, render, WebSocket progress
 │   ├── style.css                   # Tema hijau Edtekno (PRD §11)
-│   ├── css/                        # (cadangan)
-│   └── js/                         # (cadangan)
+│   └── audio/                      # Sound-effect UI frontend (assets statis)
 └── tests/
     ├── test_auth.py                        # Smoke test auth
     ├── test_browser_profile_and_progress.py # Unit test browser profile & progress preservation
@@ -107,22 +115,22 @@
 
 ## 2. Jalan Kode — Request Lifecycle (API)
 
-Semua endpoint WAJIB login (`backend/deps.py::require_auth`) kecuali `POST /api/auth/login`.
-Frontend memanggil API via `fetch` di `frontend/app.js`.
+Semua endpoint WAJIB login (`app/Middleware/auth_middleware.py::require_auth`) kecuali `POST /api/auth/login`.
+Frontend memanggil API via `fetch` di `public/app.js`.
 
 ### 2.1 Login
 ```
-frontend/app.js --POST--> /api/auth/login
-  → backend/controllers/auth_routes.py::login
-  → backend/services/auth_service.py::verify_password (bcrypt, tabel users)
-  → request.session["user_id"] (signed cookie, HttpOnly) — backend/main.py::SessionMiddleware
+public/app.js --POST--> /api/auth/login
+  → routes/auth.py::login → app/Controllers/AuthController.py::login
+  → app/Services/auth_service.py::verify_password (bcrypt, tabel users)
+  → request.session["user_id"] (signed cookie, HttpOnly) — app/main.py::SessionMiddleware
 ```
 
 ### 2.2 Mulai Scrape (seed/enrichment)
 ```
 POST /api/scrape  (atau /api/enrich)
-  → backend/controllers/scrape_routes.py::start_scrape / start_enrichment
-  → backend/services/job_manager.py::job_manager.start
+  → routes/scrape.py::start_scrape / start_enrichment → app/Controllers/ScrapeController.py
+  → app/Services/job_manager.py::job_manager.start
       ├─ store.create_job → scrape_jobs (status=pending)
       ├─ ScraperRegistry.get_class(source) → pilih kelas scraper
       │    (dapodik: kirim daftar target nama sekolah dari find_incomplete_leads)
@@ -162,8 +170,8 @@ Frontend memantau via polling `/api/jobs` (**WebSocket /ws belum dipasang** — 
 ### 2.4 Query/Filter/Update Leads
 ```
 GET /api/leads?search=&source=&kota=&category=&status=&page=&size=&sort_by=&sort_dir=
-  → backend/controllers/lead_routes.py::list_leads
-  → backend/services/storage_service.py::query_leads
+  → routes/lead.py::list_leads → app/Controllers/LeadController.py::list_leads
+  → app/Services/storage_service.py::query_leads
       ├─ JOIN categories & cities (outer) agar bisa sort/filter nama lookup
       ├─ search: nama_instansi/alamat/email/kategori/kota (ilike)
       └─ sort_by di-whitelist via SORTABLE_COLUMNS (anti SQL-injection)
@@ -175,7 +183,7 @@ DELETE /api/leads/{id} → storage_service.delete_leads
 ### 2.5 Dedup / Merge
 ```
 GET  /api/duplicates
-  → backend/services/dedup_service.py::find_duplicate_groups
+  → app/Services/dedup_service.py::find_duplicate_groups
       _lead_fingerprints → key (nama+kota, npsn, phone, email, domain)
       _score_pair → skor kemiripan; hanya grup dengan >= 2 member & score >= 1
 POST /api/duplicates/resolve
@@ -211,8 +219,8 @@ docker/entrypoint.sh (ENTRYPOINT container)
   buka tab Monitor (noVNC), login, tutup jendela — profil tersimpan di volume
   `playwright_profile` (`~/playwright_chrome_profile_gmaps`).
 - UI membaca info monitor dari `GET /api/browser-status → {"novnc": {...}}`
-  (`scrape_routes._novnc_status`) dan menampilkan tombol **Lihat Browser (Monitor)**
-  (`frontend/app.js::novncTargetUrl`, pakai `NOVNC_PUBLIC_URL` bila diisi — mis. via HTTPS/Cloudflare).
+  (`routes.scrape` / `ScrapeController._novnc_status`) dan menampilkan tombol **Lihat Browser (Monitor)**
+  (`public/app.js::novncTargetUrl`, pakai `NOVNC_PUBLIC_URL` bila diisi — mis. via HTTPS/Cloudflare).
 - Keamanan: x11vnc diproteksi `NOVNC_PASSWORD` (maks 8 karakter, batas protokol RFB);
   kosong = tanpa password → WAJIB dibatasi firewall/tunnel. `VNC_PORT` 5900 tidak
   dipublikasikan; hanya web noVNC `:8002`.
@@ -259,35 +267,43 @@ Alur konseptual PRD v1.1 (lihat [prd.md](prd.md) §6.2); implementasi aktual di 
 
 | File | Peran dalam jalan kode |
 |---|---|
-| `backend/main.py` | Merakit FastAPI: lifespan → `init_db()` + `seed_default_user()`; SessionMiddleware; mount `/audio` lalu `/` (frontend) di akhir |
-| `backend/config.py` | Baca env `.env`; `database_url` = `mysql+pymysql://...`; default delay scraper 1–3 detik; **konfigurasi browser Playwright**: `browser_headless` (env `BROWSER_HEADLESS`) & `browser_channel` (env `BROWSER_CHANNEL`); **konfigurasi monitor noVNC**: `novnc_enabled/port/public_url/password` + properti `novnc_available` & `novnc_url` (dipakai `/api/browser-status`) |
-| `backend/models/base.py` | Engine SQLAlchemy + pooling `pool_recycle=1800`, `pool_pre_ping` (mitigasi TiDB idle disconnect), SSL `connect_args` |
-| `backend/services/job_manager.py` | **Orkestrator scraping**: `SCRAPER_REGISTRY`, `ENRICHMENT_SOURCES`, thread background, cancel, `reconcile()` watchdog (koreksi job stuck `running` → `error` saat proses/browser mati/hang). `_run` bercabang: seed → `save_raw_items`; enrichment → `match_and_merge` |
-| `backend/services/storage_service.py` | Gerbang utama tulis/baca `leads`; `LEAD_FIELDS`, `FK_FIELDS`, `SORTABLE_COLUMNS`; helper job (`create_job`, `update_job`, `delete_job`, `list_jobs`); opsi dropdown (`list_categories`, `list_cities`, `list_categories_with_cities` = DISTINCT Kategori→Kota dari data seed) |
-| `backend/services/auth_service.py` | bcrypt hash/verify |
-| `backend/services/browser_profile.py` | **Sumber tunggal konfigurasi launch browser**: `launch_login_browser_context()` membaca `settings.browser_headless` + `settings.browser_channel` (`BROWSER_CHANNEL=""` → Chromium bundled Playwright/Docker, `chrome` → Chrome sistem/lokal); `build_browser_args()` = sumber tunggal argumen launch (headless **atau** root/container → `--no-sandbox` + `--disable-dev-shm-usage`; berlaku juga headful di layar virtual noVNC), lalu kloning profil login ke worker Playwright bila profil utama terkunci (anti process lock) |
-| `backend/services/cleaner.py` | Normalisasi wajib sebelum DB: telp→`628...`, nama, website domain, validasi email, buang CDN (`ggpht.com`, dll) |
-| `backend/services/code_generator.py` | Generator format kode bisnis unik: `LD-{KATEGORI}-{001}`, `KAT-{KATEGORI}-{001}`, `K-{KOTA}-{001}` |
-| `backend/services/enrichment_service.py` | **Core logic enrichment**: `find_incomplete_leads` (target seed gmaps difilter kategori+kota & field kosong, `limit`=maks hasil), `match_and_merge` (isi hanya field kosong, tidak replace, tidak buat lead baru), `ENRICHMENT_FIELDS`, `CATEGORY_ENRICHMENT_SOURCES`, threshold fuzzy |
-| `backend/services/dedup_service.py` | Fingerprint & grouping duplikat; `resolve_group` → `merge_history` |
-| `backend/services/scrapers/base.py` | `BaseScraper`: `rate_limit()` = `random.uniform(min, max)` (SOP 1–3 detik), `cancel()`, `emit_progress()` |
-| `backend/services/scrapers/gmaps.py` | Seed semua segmen; `CATEGORY_KEYWORDS`, `INVALID_SCHOOL` regex, `browser_status` (termasuk flag `headless`) / `browser_login` (launch ikut settings via `launch_login_browser_context`, cleanup worker-clone), `is_alive()` (deteksi jendela Chrome ditutup) |
-| `backend/services/scrapers/dapodik.py` | **Enrichment Sekolah**: cari NPSN+kepsek per nama sekolah (target dari JobManager) di referensi.data.kemdikbud.go.id; launch browser ikut settings via `build_browser_args()` (`browser_headless`/`browser_channel` + `--no-sandbox` saat di container); output → `match_and_merge` |
-| `backend/services/scrapers/google.py` | **Enrichment Kontak Umum (Google/Web)**: cari no. WA/telp, email, website, sosmed (Instagram) per target via DuckDuckGo HTML parser; output → `match_and_merge` |
-| `backend/services/exporter.py` | `BASE_COLUMNS` + `EXTRA_COLUMNS` per sumber → XLSX/CSV |
-| `backend/services/importer.py` | Parser CSV label Indonesia → field; kontingensi ketika sumber diblokir |
-| `frontend/app.js` | Menghubungkan UI (`index.html`) ke seluruh API + polling job + tombol Stop; Riwayat Kategori (localStorage, unique, klik-isi); Hapus riwayat job (`DELETE /api/jobs/{id}` + cascade enrichment otomatis); rumus progress `(found/max)×100` via `jobProgressPct` (freeze saat Stop/cancelled); format `formatJobResult` (`Math.max(progress, taken)`); **Pemisahan riwayat job**: Scrape khusus gmaps, Enrichment khusus non-gmaps; tombol ⚡ Enrich direct ke form Enrichment; drawer/accordion **📋 Data Belum Lengkap** di Riwayat Enrichment + toolbar **⚡ Lengkapi Otomatis dengan Sumber Lain** + edit manual via `openEditModal` |
+| `app/main.py` | Merakit FastAPI: lifespan → `init_db()` + `seed_default_user()`; SessionMiddleware; mount `/audio` lalu `/` (public) di akhir |
+| `app/config.py` | Baca env `.env`; `database_url` = `mysql+pymysql://...`; default delay scraper 1–3 detik; **konfigurasi browser Playwright**: `browser_headless` & `browser_channel`; **konfigurasi monitor noVNC**: `novnc_enabled/port/public_url/password` + properti `novnc_available` & `novnc_url` (dipakai `/api/browser-status`) |
+| `app/Controllers/AuthController.py` | Controller autentikasi (login, logout, me) |
+| `app/Controllers/ScrapeController.py` | Controller scraping (seed GMaps, enrichment, jobs, status browser) |
+| `app/Controllers/LeadController.py` | Controller leads (query, CRUD, stats, export, dedup, import) |
+| `app/Middleware/auth_middleware.py` | `require_auth` dependency proteksi session |
+| `app/Models/base.py` | Engine SQLAlchemy + pooling `pool_recycle=1800`, `pool_pre_ping` (mitigasi TiDB idle disconnect), SSL `connect_args` |
+| `app/Services/job_manager.py` | **Orkestrator scraping**: `SCRAPER_REGISTRY`, `ENRICHMENT_SOURCES`, thread background, cancel, `reconcile()` watchdog |
+| `app/Services/storage_service.py` | Gerbang utama tulis/baca `leads`; `LEAD_FIELDS`, `FK_FIELDS`, `SORTABLE_COLUMNS`; helper job; opsi dropdown |
+| `app/Services/auth_service.py` | bcrypt hash/verify |
+| `app/Services/browser_profile.py` | Launch browser context Playwright & clone profile |
+| `app/Services/cleaner.py` | Normalisasi wajib sebelum DB: telp→`628...`, nama, website domain, validasi email, buang CDN |
+| `app/Services/code_generator.py` | Generator format kode bisnis unik: `LD-{KATEGORI}-{001}`, `KAT-{KATEGORI}-{001}`, `K-{KOTA}-{001}` |
+| `app/Services/enrichment_service.py` | **Core logic enrichment**: `find_incomplete_leads`, `match_and_merge`, `ENRICHMENT_FIELDS`, `CATEGORY_ENRICHMENT_SOURCES`, threshold fuzzy |
+| `app/Services/dedup_service.py` | Fingerprint & grouping duplikat; `resolve_group` → `merge_history` |
+| `app/Services/scrapers/base.py` | `BaseScraper`: `rate_limit()`, `cancel()`, `emit_progress()` |
+| `app/Services/scrapers/gmaps.py` | Seed semua segmen GMaps |
+| `app/Services/scrapers/dapodik.py` | **Enrichment Sekolah**: cari NPSN+kepsek per nama sekolah di referensi.data.kemdikbud.go.id |
+| `app/Services/scrapers/google.py` | **Enrichment Kontak Umum (Google/Web)**: cari no. WA/telp, email, website, sosmed via DuckDuckGo/Web |
+| `app/Services/exporter.py` | `BASE_COLUMNS` + `EXTRA_COLUMNS` per sumber → XLSX/CSV |
+| `app/Services/importer.py` | Parser CSV label Indonesia → field |
+| `routes/api.py` | Aggregator seluruh router endpoint `/api` |
+| `routes/auth.py` | Router autentikasi `/api/auth` |
+| `routes/scrape.py` | Router scraping `/api` |
+| `routes/lead.py` | Router leads management `/api` |
+| `public/app.js` | Logika frontend: fetch API, render, polling job, dialog dedup & incomplete |
 | `tests/test_auth.py` | Smoke test alur login |
-| `Dockerfile` | Image deployment: python:3.11-slim + deps + `playwright install --with-deps chromium` + paket display stack (`xvfb x11vnc openbox novnc websockify`); ENV `DISPLAY=:99`, `BROWSER_HEADLESS=false`, `NOVNC_PORT=8002`; `EXPOSE 8000 8002`; `ENTRYPOINT docker/entrypoint.sh` → CMD `uvicorn backend.main:app --host 0.0.0.0 --port 8000` |
-| `docker/entrypoint.sh` | **ENTRYPOINT container (monitor browser)**: nyalakan `Xvfb :99` → `openbox` → `x11vnc :5900` (password opsional via `NOVNC_PASSWORD`) → `websockify`+noVNC `:8002` → `exec` CMD; bila display gagal/`NOVNC_ENABLED=0` → paksa `BROWSER_HEADLESS=true` (fallback headless). Alur lengkap: file.md §2.7 |
-| `docker-compose.yml` | Jalur deployment: service `web-scraper` (`init: true`, `shm_size 1gb`), pemetaan host **8001 → 8000** (app, hindari bentrok container EdTeknoGuard) & **8002 → 8002** (noVNC monitor), `env_file: .env`, env `BROWSER_HEADLESS=false` + `DISPLAY=:99` + `NOVNC_PASSWORD`/`NOVNC_PUBLIC_URL` (lihat blok `environment`), volume `playwright_profile` untuk profil login browser |
+| `Dockerfile` | Image deployment: python:3.11-slim + deps + `playwright install --with-deps chromium` + noVNC stack; CMD `uvicorn app.main:app` |
+| `docker/entrypoint.sh` | **ENTRYPOINT container (monitor browser)**: nyalakan `Xvfb :99` → `openbox` → `x11vnc` → `websockify` → `exec` CMD |
+| `docker-compose.yml` | Jalur deployment: service `web-scraper` (8001 → 8000, 8002 → 8002) |
 
 ---
 
 ## 5. Konvensi Yang Harus Diikuti (kode baru)
 
-1. **Pola MVC ketat** — View (`frontend/`) → Controller (`backend/controllers/`) → Service (`backend/services/`) → Model (`backend/models/`).
-2. **Scraper baru** → buat di `backend/services/scrapers/<nama>.py`, inherit `BaseScraper`, lalu daftarkan di `SCRAPER_REGISTRY` dan `ENRICHMENT_SOURCES` di `job_manager.py`.
+1. **Pola Universal Laravel / Clean Architecture** — View (`public/`) → Router (`routes/`) → Controller (`app/Controllers/`) → Service (`app/Services/`) → Model (`app/Models/`).
+2. **Scraper baru** → buat di `app/Services/scrapers/<nama>.py`, inherit `BaseScraper`, lalu daftarkan di `SCRAPER_REGISTRY` dan `ENRICHMENT_SOURCES` di `job_manager.py`.
 3. **Jangan bypass Cleaner** — semua data masuk DB lewat `clean_lead()` + `upsert_lead()`.
 4. **Kategori/kota = FK lookup** — selalu resolve ke `categories`/`cities` (jangan kolom string baru).
 5. **Rate-limit 1–3 detik** — wajib `self.rate_limit()` antar request scraper.
@@ -315,23 +331,75 @@ Blok di bawah dibaca oleh `tools/check_docs_sync.py` untuk membandingkan **dokum
 Saat menambah/memindah/menghapus file, **perbarui blok ini** (dan pohon folder di §1).
 
 <!-- FILE-INDEX-START -->
-AGENTS.md
-README.md
-prd.md
-file.md
-database.md
-pyproject.toml
-requirements.txt
-run.py
-scraper_gmaps_sekolah.py
+.clinerules/rules.md
+.dockerignore
 .env.example
 .gitattributes
+.githooks/pre-commit
 .gitignore
-.dockerignore
-Dockerfile
-docker/entrypoint.sh
-docker-compose.yml
 .vscode/settings.json
+AGENTS.md
+Dockerfile
+README.md
+app/Controllers/AuthController.py
+app/Controllers/LeadController.py
+app/Controllers/ScrapeController.py
+app/Controllers/__init__.py
+app/Middleware/__init__.py
+app/Middleware/auth_middleware.py
+app/Models/__init__.py
+app/Models/base.py
+app/Models/category.py
+app/Models/city.py
+app/Models/lead.py
+app/Models/merge_history.py
+app/Models/scrape_job.py
+app/Models/user.py
+app/Services/__init__.py
+app/Services/auth_service.py
+app/Services/browser_profile.py
+app/Services/cleaner.py
+app/Services/code_generator.py
+app/Services/dedup_service.py
+app/Services/enrichment_service.py
+app/Services/exporter.py
+app/Services/importer.py
+app/Services/job_manager.py
+app/Services/scrapers/__init__.py
+app/Services/scrapers/base.py
+app/Services/scrapers/dapodik.py
+app/Services/scrapers/gmaps.py
+app/Services/scrapers/google.py
+app/Services/storage_service.py
+app/__init__.py
+app/config.py
+app/main.py
+database.md
+database/migrations/__init__.py
+database/migrations/migrate_phase1.py
+database/seeders/__init__.py
+database/seeders/user_seeder.py
+docker-compose.yml
+docker/entrypoint.sh
+file.md
+prd.md
+public/app.js
+public/index.html
+public/style.css
+pyproject.toml
+requirements.txt
+routes/__init__.py
+routes/api.py
+routes/auth.py
+routes/lead.py
+routes/scrape.py
+run.py
+scraper_gmaps_sekolah.py
+tests/test_auth.py
+tests/test_browser_profile_and_progress.py
+tests/test_codes_and_socials.py
+tests/test_enrichment_core.py
+tests/test_google_enrichment.py
 tools/add_seed_job_fk_to_scrape_jobs.py
 tools/check_docs_sync.py
 tools/clean_invalid_generic_links.py
@@ -339,47 +407,4 @@ tools/drop_job_and_vendor_columns.py
 tools/drop_jobstreet_glints_lpse_sources.py
 tools/migrate_multi_social_and_codes.py
 tools/migrate_tiktok_and_clean_socials.py
-.clinerules/rules.md
-.githooks/pre-commit
-backend/config.py
-backend/deps.py
-backend/main.py
-backend/migrate_phase1.py
-backend/seed.py
-backend/controllers/__init__.py
-backend/controllers/auth_routes.py
-backend/controllers/lead_routes.py
-backend/controllers/scrape_routes.py
-backend/models/__init__.py
-backend/models/base.py
-backend/models/category.py
-backend/models/city.py
-backend/models/lead.py
-backend/models/merge_history.py
-backend/models/scrape_job.py
-backend/models/user.py
-backend/services/__init__.py
-backend/services/auth_service.py
-backend/services/browser_profile.py
-backend/services/cleaner.py
-backend/services/code_generator.py
-backend/services/dedup_service.py
-backend/services/enrichment_service.py
-backend/services/exporter.py
-backend/services/importer.py
-backend/services/job_manager.py
-backend/services/storage_service.py
-backend/services/scrapers/__init__.py
-backend/services/scrapers/base.py
-backend/services/scrapers/dapodik.py
-backend/services/scrapers/gmaps.py
-backend/services/scrapers/google.py
-frontend/app.js
-frontend/index.html
-frontend/style.css
-tests/test_auth.py
-tests/test_browser_profile_and_progress.py
-tests/test_codes_and_socials.py
-tests/test_enrichment_core.py
-tests/test_google_enrichment.py
 <!-- FILE-INDEX-END -->

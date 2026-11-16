@@ -1,6 +1,7 @@
 """Test alur auth: login, me, logout, dan proteksi 401."""
 from fastapi.testclient import TestClient
-from backend.main import app
+from app.main import app
+from app.config import settings
 
 
 def test_health_and_unauth():
@@ -17,7 +18,7 @@ def test_health_and_unauth():
 def test_login_flow():
     with TestClient(app) as client:
         # Login benar
-        r = client.post("/api/auth/login", json={"username": "admin", "password": "agiltampan"})
+        r = client.post("/api/auth/login", json={"username": "admin", "password": settings.seed_password})
         assert r.status_code == 200, f"login expected 200, got {r.status_code} {r.text}"
         assert r.json()["ok"] is True
 

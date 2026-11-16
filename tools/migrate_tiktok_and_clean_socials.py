@@ -7,9 +7,9 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from sqlalchemy import text
-from backend.models.base import engine, SessionLocal
-from backend.models.lead import Lead
-from backend.services.cleaner import clean_social_url
+from app.Models.base import engine, SessionLocal
+from app.Models.lead import Lead
+from app.Services.cleaner import clean_social_url
 
 
 def run_migration():

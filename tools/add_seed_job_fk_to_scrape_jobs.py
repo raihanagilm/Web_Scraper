@@ -6,7 +6,7 @@ import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sqlalchemy import text
-from backend.models.base import engine
+from app.Models.base import engine
 
 
 def migrate_seed_job_fk():

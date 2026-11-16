@@ -5,7 +5,7 @@ Tugas:
   1. Pastikan prd.md, file.md, database.md ada.
   2. Pastikan ketiganya SALING MERUJUK (cross-reference) — "saling membaca".
   3. Pastikan daftar file di file.md (blok FILE-INDEX-START..END) cocok dengan file aktual.
-  4. Pastikan tabel/kolom di database.md cocok dengan model SQLAlchemy (backend/models).
+  4. Pastikan tabel/kolom di database.md cocok dengan model SQLAlchemy (app/Models).
 
 Exit code: 0 = sinkron; 1 = ada drift (blokir commit / lanjutkan task dengan perbaikan).
 
@@ -29,7 +29,7 @@ DOCS = {
 
 # Direktori / pola yang TIDAK dilacak (dinamis / secret / tooling / asset)
 # `scratch` & `logs` = ruang kerja sementara/runtime (di-gitignore, lihat .gitignore bagian Logs)
-EXCLUDED_DIRS = {"venv", ".git", ".pytest_cache", "__pycache__", "node_modules",
+EXCLUDED_DIRS = {"venv", ".venv", ".git", ".pytest_cache", "__pycache__", "node_modules",
                  "exports", "uploads", "audio", "css", "js", "scratch", "logs", ".kilo"}
 EXCLUDED_FILES = {".env"}
 # Ekstensi runtime/artefak yang tidak pernah jadi bagian dokumen (selaras .gitignore)
@@ -88,7 +88,7 @@ def _parse_models(issues: list[str]) -> dict[str, set[str]] | None:
     """Import model SQLAlchemy & peta metadata → {tabel: set(kolom)}."""
     try:
         sys.path.insert(0, str(ROOT))
-        from backend.models import Base  # noqa: F401  (memuat seluruh model)
+        from app.Models import Base  # noqa: F401  (memuat seluruh model)
         return {t: {c.name for c in tb.columns}
                 for t, tb in sorted(Base.metadata.tables.items())}
     except Exception as e:  # pragma: no cover - environment-dependent

@@ -15,11 +15,11 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from sqlalchemy import text
-from backend.models.base import engine, SessionLocal
-from backend.models.category import Category
-from backend.models.city import City
-from backend.models.lead import Lead
-from backend.services.code_generator import (
+from app.Models.base import engine, SessionLocal
+from app.Models.category import Category
+from app.Models.city import City
+from app.Models.lead import Lead
+from app.Services.code_generator import (
     generate_category_code,
     generate_city_code,
     generate_lead_code,

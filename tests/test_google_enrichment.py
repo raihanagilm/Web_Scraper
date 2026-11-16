@@ -1,9 +1,9 @@
 """Unit test untuk GoogleScraper dan alur enrichment Google / Web."""
 import pytest
-from backend.services.scrapers.google import GoogleScraper
-from backend.services.enrichment_service import ENRICHMENT_FIELDS
-from backend.services.job_manager import ScraperRegistry
-from backend.services.scrapers.gmaps import get_enrichment_sources
+from app.Services.scrapers.google import GoogleScraper
+from app.Services.enrichment_service import ENRICHMENT_FIELDS
+from app.Services.job_manager import ScraperRegistry
+from app.Services.scrapers.gmaps import get_enrichment_sources
 
 
 def test_google_registered_in_scraper_registry():

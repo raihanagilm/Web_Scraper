@@ -9,9 +9,9 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from backend.models import Category, City, Lead, ScrapeJob, Base
-from backend.services import enrichment_service as enrich
-from backend.services import storage_service as store
+from app.Models import Category, City, Lead, ScrapeJob, Base
+from app.Services import enrichment_service as enrich
+from app.Services import storage_service as store
 
 
 @pytest.fixture()
@@ -176,7 +176,7 @@ def job_db() -> Session:
 
 def test_run_seed_mencatat_items_created_updated(job_db: Session):
     """Seed: items_created/items_updated = jumlah lead yang benar-benar tersimpan."""
-    from backend.services.job_manager import JobManager
+    from app.Services.job_manager import JobManager
 
     job = job_db.query(ScrapeJob).first()
     jm = JobManager()
@@ -200,7 +200,7 @@ def test_run_seed_mencatat_items_created_updated(job_db: Session):
 
 def test_run_enrichment_mencatat_items_matched(job_db: Session):
     """Enrichment: items_created = jumlah lead yang field-nya terisi (matched)."""
-    from backend.services.job_manager import JobManager
+    from app.Services.job_manager import JobManager
 
     job = job_db.query(ScrapeJob).first()
     jm = JobManager()
@@ -222,7 +222,7 @@ def test_run_enrichment_mencatat_items_matched(job_db: Session):
 
 def test_get_job_incomplete_leads(job_db: Session):
     """Endpoint /jobs/{job_id}/incomplete mengembalikan lead seed yang belum lengkap."""
-    from backend.controllers.scrape_routes import get_job_incomplete_leads
+    from routes.scrape import get_job_incomplete_leads
 
     # Buat job enrichment dapodik
     job = store.create_job(job_db, "dapodik", "sekolah", "salatiga", 100)
@@ -240,7 +240,7 @@ def test_get_job_incomplete_leads(job_db: Session):
 
 def test_generate_job_id_format():
     """Format ID job harus SCRP_{kategori[:14]}_{YYYYMMDD_HHMMSS} dan panjang <= 35."""
-    from backend.services.storage_service import generate_job_id
+    from app.Services.storage_service import generate_job_id
 
     jid1 = generate_job_id("sekolah")
     assert jid1.startswith("SCRP_sekolah_")

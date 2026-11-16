@@ -5,10 +5,10 @@
 > | Dokumen | Isi |
 > |---|---|
 > | [prd.md](prd.md) | Kebutuhan bisnis & model data konseptual (PRD §9) |
-> | [file.md](file.md) | Struktur folder & jalan kode (tabel model → file `backend/models/*.py`) |
+> | [file.md](file.md) | Struktur folder & jalan kode (tabel model → file `app/Models/*.py`) |
 > | **database.md (ini)** | Skema detail: tabel, kolom, tipe, enum, unique constraint, relasi |
 >
-> **Aturan:** Jika Anda mengubah model di `backend/models/*.py`, wajib memperbarui dokumen ini
+> **Aturan:** Jika Anda mengubah model di `app/Models/*.py`, wajib memperbarui dokumen ini
 > (tabel yang bersesuaian) DAN `LEAD_FIELDS`/`SORTABLE_COLUMNS` di `storage_service.py`.
 > Verifikasi: `venv\Scripts\python.exe tools\check_docs_sync.py`.
 
@@ -16,7 +16,7 @@
 
 ## 1. Ringkasan & Relasi Antar Tabel
 
-DB: **MySQL (TiDB Cloud)** — `mysql+pymysql://` (lihat `backend/config.py`), engine di `backend/models/base.py`.
+DB: **MySQL (TiDB Cloud)** — `mysql+pymysql://` (lihat `app/config.py`), engine di `app/Models/base.py`.
 
 ```
 users ─────────────┐  (auth login)
@@ -41,7 +41,7 @@ merge_history ────────┘ (audit dedup; member_ids/field_choices
 
 ## 2. Tabel: users
 
-Auth login. Di-seed otomatis oleh `backend/seed.py::seed_default_user` (username/password dari `.env`).
+Auth login. Di-seed otomatis oleh `database/seeders/user_seeder.py::seed_default_user` (username/password dari `.env`).
 
 | Kolom | Tipe | Constraint / Default | Keterangan |
 |---|---|---|---|

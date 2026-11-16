@@ -142,7 +142,7 @@ Prinsip umum: **Google Maps adalah sumber utama (seed) untuk semua segmen** — 
 
 ## 7. Struktur Folder
 
-> Lihat bab 7 di dokumen lengkap. Inti: backend/{main.py, config.py, seed.py, models/, controllers/, services/{scrapers/,cleaner.py,exporter.py,importer.py,storage_service.py,job_manager.py,auth_service.py,dedup_service.py}, frontend/{login.html,index.html,scrape.html,results.html,merge.html,css/,js/}
+> Lihat bab 7 di dokumen lengkap. Inti: app/{main.py, config.py, Middleware/, Models/, Controllers/, Services/{scrapers/,cleaner.py,exporter.py,importer.py,storage_service.py,job_manager.py,auth_service.py,dedup_service.py}}, routes/{api.py, auth.py, scrape.py, lead.py}, database/{seeders/, migrations/}, public/{index.html, app.js, style.css, audio/}
 
 **Dokumen detail:** lihat [file.md](file.md) — struktur folder & jalan kode terkini.
 

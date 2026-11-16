@@ -6,9 +6,9 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from backend.models.base import SessionLocal
-from backend.models.lead import Lead
-from backend.services.cleaner import clean_social_url, is_valid_website, is_junk_website
+from app.Models.base import SessionLocal
+from app.Models.lead import Lead
+from app.Services.cleaner import clean_social_url, is_valid_website, is_junk_website
 
 
 def clean_generic_links():
