@@ -1,5 +1,5 @@
 """Scrape routes — deklarasi endpoint scrape, jobs, enrichment, monitoring."""
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.Middleware.auth_middleware import require_auth
@@ -19,13 +19,13 @@ def list_sources(_: dict = Depends(require_auth)) -> dict:
 
 
 @router.post("/scrape")
-def start_scrape(req: ScrapeRequest, _: dict = Depends(require_auth)) -> dict:
-    return ScrapeController.start_scrape(req)
+def start_scrape(req: ScrapeRequest, request: Request, _: dict = Depends(require_auth)) -> dict:
+    return ScrapeController.start_scrape(req, request)
 
 
 @router.post("/enrich")
-def start_enrichment(req: EnrichmentRequest, _: dict = Depends(require_auth), db: Session = Depends(get_db)) -> dict:
-    return ScrapeController.start_enrichment(req, db)
+def start_enrichment(req: EnrichmentRequest, request: Request, _: dict = Depends(require_auth), db: Session = Depends(get_db)) -> dict:
+    return ScrapeController.start_enrichment(req, db, request)
 
 
 @router.get("/enrich/options")
@@ -64,10 +64,10 @@ def delete_job(job_id: str, _: dict = Depends(require_auth), db: Session = Depen
 
 
 @router.get("/browser-status")
-def browser_status(_: dict = Depends(require_auth)) -> dict:
-    return ScrapeController.browser_status()
+def browser_status(request: Request, _: dict = Depends(require_auth)) -> dict:
+    return ScrapeController.browser_status(request)
 
 
 @router.post("/browser-login")
-def browser_login(_: dict = Depends(require_auth)) -> dict:
-    return ScrapeController.browser_login()
+def browser_login(request: Request, _: dict = Depends(require_auth)) -> dict:
+    return ScrapeController.browser_login(request)

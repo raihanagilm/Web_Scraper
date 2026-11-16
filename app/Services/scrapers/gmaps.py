@@ -107,8 +107,8 @@ IG_BLOCKED_SEGMENTS = {
 class GmapsScraper(BaseScraper):
     source = "gmaps"
 
-    def __init__(self, category: str = "sekolah", city: str = "salatiga", max_results: int = 100, job_id: str | None = None):
-        super().__init__(source=self.source, category=category, city=city, max_results=max_results)
+    def __init__(self, category: str = "sekolah", city: str = "salatiga", max_results: int = 100, job_id: str | None = None, user_id: int | None = None):
+        super().__init__(source=self.source, category=category, city=city, max_results=max_results, user_id=user_id)
         self.job_id = job_id
         self._page = None  # page aktif — dipakai is_alive() untuk deteksi browser ditutup
 
@@ -262,8 +262,8 @@ class GmapsScraper(BaseScraper):
             "status": "New",
         }
     def _profile_dir(self) -> str:
-        """Profil Chrome persisten bersama — login sekali berlaku utk semua kota."""
-        return get_login_profile_dir()
+        """Profil Chrome persisten per pengguna — login berlaku untuk pengguna tersebut."""
+        return get_login_profile_dir(self.user_id)
 
     # ---- Ekstraksi Instagram (akurat, ala file lama tapi diperketat) ----
     def _clean_ig_url(self, url: str) -> str:
@@ -301,7 +301,7 @@ class GmapsScraper(BaseScraper):
         return {
             "profile": profile,
             "profile_exists": os.path.isdir(profile),
-            "has_cookies": is_login_profile_ready(),
+            "has_cookies": is_login_profile_ready(self.user_id),
             "headless": settings.browser_headless,
         }
 
@@ -313,7 +313,7 @@ class GmapsScraper(BaseScraper):
         di profil persisten; jendela ditutup manual oleh user.
         """
         with sync_playwright() as p:
-            context, worker_dir = launch_login_browser_context(p, job_id=self.job_id)
+            context, worker_dir = launch_login_browser_context(p, job_id=self.job_id, user_id=self.user_id)
             page = context.new_page()
             try:
                 page.goto("https://www.google.com/maps", timeout=60000)
@@ -340,6 +340,7 @@ class GmapsScraper(BaseScraper):
             context, worker_dir = launch_login_browser_context(
                 p,
                 job_id=self.job_id,
+                user_id=self.user_id,
                 args=["--start-maximized"],
             )
             try:

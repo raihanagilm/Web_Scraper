@@ -78,6 +78,10 @@
           <span>Review Duplikat</span>
           <span id="dedup-badge" class="badge hidden"></span>
         </button>
+        <button id="nav-users" class="nav-item hidden" data-page="users">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span>Kelola Pengguna</span>
+        </button>
       </nav>
       <div class="sidebar-foot">
         <span id="user-name" class="user-name"></span>
@@ -334,6 +338,57 @@
           <span>Tidak ada kandidat duplikat. Database bersih dari entitas ganda.</span>
         </p>
         <div id="dedup-list"></div>
+      </section>
+
+      <!-- Kelola Pengguna (Admin) -->
+      <section id="page-users" class="page hidden">
+        <div class="page-head">
+          <div>
+            <h2>Kelola Pengguna</h2>
+            <p class="muted page-sub">Manajemen akun staf/tim untuk akses scraper dan profil Google terisolasi</p>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 24px;">
+          <h3 style="margin-bottom: 16px;">Tambah Pengguna Baru</h3>
+          <form id="form-create-user" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) 120px; gap: 12px; align-items: end;">
+            <div class="field">
+              <label for="new-username">Username</label>
+              <input id="new-username" type="text" placeholder="misal: staf_andi" required />
+            </div>
+            <div class="field">
+              <label for="new-fullname">Nama Lengkap</label>
+              <input id="new-fullname" type="text" placeholder="misal: Andi Pratama" required />
+            </div>
+            <div class="field">
+              <label for="new-password">Password</label>
+              <input id="new-password" type="password" placeholder="Password akun" required />
+            </div>
+            <button type="submit" class="btn btn-primary" style="height: 38px;">
+              <span>Tambah</span>
+            </button>
+          </form>
+          <div id="create-user-msg" class="msg-box hidden" style="margin-top: 12px;"></div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-bottom: 16px;">Daftar Akun Pengguna</h3>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Username</th>
+                  <th>Nama Lengkap</th>
+                  <th>Tanggal Dibuat</th>
+                </tr>
+              </thead>
+              <tbody id="users-table-body">
+                <tr><td colspan="4" class="muted text-center">Memuat daftar pengguna...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </section>
     </main>
   </div>

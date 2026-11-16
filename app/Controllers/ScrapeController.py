@@ -62,18 +62,19 @@ class ScrapeController:
         }
 
     @staticmethod
-    def start_scrape(req: ScrapeRequest) -> dict:
+    def start_scrape(req: ScrapeRequest, request: Request | None = None) -> dict:
         if req.max_results < 1:
             raise HTTPException(status_code=422, detail="max_results minimal 1")
         if req.max_results > 100:
             raise HTTPException(status_code=422, detail="max_results maksimal 100 agar proses stabil dan aman dari rate limit")
         try:
-            return job_manager.start(req.source, req.category, req.city, req.max_results, job_id=req.job_id)
+            user_id = request.session.get("user_id") if request else None
+            return job_manager.start(req.source, req.category, req.city, req.max_results, job_id=req.job_id, user_id=user_id)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
     @staticmethod
-    def start_enrichment(req: EnrichmentRequest, db: Session) -> dict:
+    def start_enrichment(req: EnrichmentRequest, db: Session, request: Request | None = None) -> dict:
         source = req.enrichment_source.strip().lower()
         if not source:
             sources = get_enrichment_sources(req.category)
@@ -101,6 +102,7 @@ class ScrapeController:
                 seed_job_id = seed.id
 
         try:
+            user_id = request.session.get("user_id") if request else None
             return job_manager.start(
                 source=source,
                 category=req.category,
@@ -108,6 +110,7 @@ class ScrapeController:
                 max_results=req.max_results,
                 job_id=req.job_id,
                 seed_job_id=seed_job_id,
+                user_id=user_id,
             )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
@@ -226,16 +229,17 @@ class ScrapeController:
         }
 
     @staticmethod
-    def browser_status() -> dict:
+    def browser_status(request: Request | None = None) -> dict:
+        user_id = request.session.get("user_id") if request else None
         try:
-            status = GmapsScraper().browser_status()
+            status = GmapsScraper(user_id=user_id).browser_status()
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Gagal cek status browser: {e}")
         status["novnc"] = ScrapeController._novnc_status()
         return status
 
     @staticmethod
-    def browser_login() -> dict:
+    def browser_login(request: Request | None = None) -> dict:
         if settings.browser_headless:
             return {
                 "ok": False,
@@ -249,6 +253,7 @@ class ScrapeController:
                 ),
             }
 
+        user_id = request.session.get("user_id") if request else None
         global _login_thread
         if _login_thread is not None and _login_thread.is_alive():
             return {
@@ -259,7 +264,7 @@ class ScrapeController:
 
         def _open():
             try:
-                GmapsScraper().browser_login()
+                GmapsScraper(user_id=user_id).browser_login()
             except Exception:
                 pass
 

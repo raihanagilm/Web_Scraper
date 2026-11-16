@@ -9,11 +9,12 @@ from app.config import settings
 class BaseScraper(ABC):
     """Kelas dasar untuk semua scraper."""
 
-    def __init__(self, source: str, category: str, city: str, max_results: int = 100):
+    def __init__(self, source: str, category: str, city: str, max_results: int = 100, user_id: Optional[int] = None):
         self.source = source
         self.category = category
         self.city = city
         self.max_results = max_results
+        self.user_id = user_id
         self._cancelled = False
         self._progress_cb: Optional[Callable[[int, int, str], None]] = None
 

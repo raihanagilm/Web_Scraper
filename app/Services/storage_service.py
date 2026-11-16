@@ -418,6 +418,7 @@ def create_job(
     max_results: int,
     job_id: str | None = None,
     seed_job_id: str | None = None,
+    user_id: int | None = None,
 ) -> ScrapeJob:
     jid = job_id or generate_job_id(category)
     # Pastikan jid unik jika ada bentrok detik yang sama
@@ -427,6 +428,7 @@ def create_job(
 
     job = ScrapeJob(
         id=jid,
+        user_id=user_id,
         seed_job_id=seed_job_id,
         source=source,
         category=category,
@@ -454,12 +456,13 @@ def find_or_create_job(
     max_results: int,
     job_id: str | None = None,
     seed_job_id: str | None = None,
+    user_id: int | None = None,
 ) -> ScrapeJob:
     """Jika job_id diberikan (dari aksi Ulangi / Lengkapi): update data riwayat job yang diklik.
     Jika job_id None: buat job baru (tidak pernah menimpa job sebelumnya).
     """
     if not job_id:
-        return create_job(db, source, category, city, max_results, seed_job_id=seed_job_id)
+        return create_job(db, source, category, city, max_results, seed_job_id=seed_job_id, user_id=user_id)
 
     job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
     if job:
@@ -470,6 +473,8 @@ def find_or_create_job(
         job.progress = 0
         job.items_created = 0
         job.items_updated = 0
+        if user_id:
+            job.user_id = user_id
         if seed_job_id:
             job.seed_job_id = seed_job_id
         job.log = f"Job diperbarui pada {datetime.utcnow().strftime('%d %b %Y %H:%M')}\n"
@@ -477,7 +482,7 @@ def find_or_create_job(
         db.refresh(job)
         return job
 
-    return create_job(db, source, category, city, max_results, job_id=job_id, seed_job_id=seed_job_id)
+    return create_job(db, source, category, city, max_results, job_id=job_id, seed_job_id=seed_job_id, user_id=user_id)
 
 
 def update_job(db: Session, job_id: str, **fields) -> None:
@@ -512,6 +517,8 @@ def list_jobs(db: Session, limit: int = 20) -> list[dict]:
     return [
         {
             "id": j.id,
+            "user_id": getattr(j, "user_id", None),
+            "username": j.user.username if getattr(j, "user", None) else None,
             "seed_job_id": getattr(j, "seed_job_id", None),
             "source": j.source,
             "category": j.category,

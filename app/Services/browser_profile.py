@@ -24,28 +24,33 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 LOGIN_PROFILE_DIR = os.path.expanduser("~/playwright_chrome_profile_gmaps")
+PROFILES_BASE_DIR = os.path.expanduser("~/playwright_profiles")
 
 
-def get_login_profile_dir() -> str:
-    """Mendapatkan path profil Chrome persisten yang dipakai tombol 'Buka Browser Login'."""
-    os.makedirs(LOGIN_PROFILE_DIR, exist_ok=True)
-    return LOGIN_PROFILE_DIR
+def get_login_profile_dir(user_id: Optional[int] = None) -> str:
+    """Mendapatkan path profil Chrome persisten per pengguna agar akun Google terisolasi."""
+    if user_id:
+        p_dir = os.path.join(PROFILES_BASE_DIR, f"user_{user_id}")
+    else:
+        p_dir = LOGIN_PROFILE_DIR
+    os.makedirs(p_dir, exist_ok=True)
+    return p_dir
 
 
-def is_login_profile_ready() -> bool:
-    """Cek apakah profil login sudah ada dan memiliki cookie sesi Google."""
-    p_dir = get_login_profile_dir()
+def is_login_profile_ready(user_id: Optional[int] = None) -> bool:
+    """Cek apakah profil login user sudah ada dan memiliki cookie sesi Google."""
+    p_dir = get_login_profile_dir(user_id)
     cookie_file = os.path.join(p_dir, "Default", "Network", "Cookies")
     if not os.path.isfile(cookie_file):
         cookie_file = os.path.join(p_dir, "Default", "Cookies")
     return os.path.isfile(cookie_file) and os.path.getsize(cookie_file) > 0
 
 
-def clone_login_profile(worker_dir: str) -> str:
-    """Kloning seluruh direktori ~/playwright_chrome_profile_gmaps ke worker_dir,
+def clone_login_profile(worker_dir: str, user_id: Optional[int] = None) -> str:
+    """Kloning direktori profil pengguna ke worker_dir,
     mengabaikan file lock Chromium (SingletonLock, *.lock) agar sesi login Google
     dapat dibuka secara bersamaan di instance Playwright terpisah."""
-    src = get_login_profile_dir()
+    src = get_login_profile_dir(user_id)
     os.makedirs(worker_dir, exist_ok=True)
     shutil.rmtree(worker_dir, ignore_errors=True)
 
@@ -126,31 +131,11 @@ def find_playwright_executable() -> Optional[str]:
 def launch_login_browser_context(
     playwright_instance,
     job_id: Optional[str] = None,
+    user_id: Optional[int] = None,
     headless: Optional[bool] = None,
     args: Optional[list] = None,
 ) -> Tuple[BrowserContext, Optional[str]]:
-    """Membuka persistent context Playwright dengan akun Google yang sudah login.
-
-    Konfigurasi browser diambil dari settings (env), sehingga jalur lokal
-    (Chrome sistem, headful) dan jalur Docker (Chromium bundled, headful di
-    layar virtual Xvfb yang di-stream noVNC / fallback headless) memakai
-    fungsi yang sama:
-    - BROWSER_HEADLESS=true  → headless (dipakai bila display stack mati)
-    - BROWSER_HEADLESS=false → headful; di Docker jendelanya muncul di layar
-      virtual Xvfb (:99) dan bisa dilihat lewat noVNC (file.md §2.7)
-    - BROWSER_CHANNEL=""     → Chromium bundled Playwright (Docker)
-      BROWSER_CHANNEL=chrome → Google Chrome sistem (lokal)
-
-    Argumen launch selalu dibangun lewat `build_browser_args()`: di container
-    Chromium berjalan sebagai root, jadi `--no-sandbox` WAJIB — bukan hanya
-    saat headless, tapi juga saat headful di layar virtual.
-
-    Strategi:
-    1. Coba buka profil utama ~/playwright_chrome_profile_gmaps secara langsung (instan & tanpa overhead).
-    2. Jika gagal karena terkunci (TargetClosedError / SingletonLock), kloning ke direktori worker sementara.
-
-    Mengembalikan tuple: (context, temp_worker_dir_yang_perlu_dibersihkan_atau_None).
-    """
+    """Membuka persistent context Playwright dengan akun Google yang sudah login."""
     if headless is None:
         headless = settings.browser_headless
     exec_path = find_playwright_executable()
@@ -159,7 +144,7 @@ def launch_login_browser_context(
 
     cmd_args = build_browser_args(args, headless)
 
-    primary_dir = get_login_profile_dir()
+    primary_dir = get_login_profile_dir(user_id)
 
     # 1. Coba buka direktori profil login utama
     try:
@@ -179,7 +164,7 @@ def launch_login_browser_context(
     # 2. Fallback: kloning profil login ke folder worker sementara
     clean_id = re.sub(r"[^a-zA-Z0-9]+", "_", job_id or uuid.uuid4().hex[:8])
     worker_dir = os.path.join(tempfile.gettempdir(), "playwright_login_workers", f"worker_{clean_id}")
-    clone_login_profile(worker_dir)
+    clone_login_profile(worker_dir, user_id=user_id)
 
     context = playwright_instance.chromium.launch_persistent_context(
         user_data_dir=worker_dir,

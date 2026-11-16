@@ -58,8 +58,9 @@ class DapodikScraper(BaseScraper):
         max_results: int = 100,
         targets: list[str] | None = None,
         job_id: str | None = None,
+        user_id: int | None = None,
     ):
-        super().__init__(source=self.source, category=category, city=city, max_results=max_results)
+        super().__init__(source=self.source, category=category, city=city, max_results=max_results, user_id=user_id)
         self.targets = [t.strip() for t in (targets or []) if t and t.strip()][:max_results]
         self.job_id = job_id
         self._page = None

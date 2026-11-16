@@ -59,6 +59,7 @@ class JobManager:
         max_results: int = 0,
         job_id: str | None = None,
         seed_job_id: str | None = None,
+        user_id: int | None = None,
     ) -> dict:
         idx_max = max_results or None
 
@@ -84,7 +85,7 @@ class JobManager:
         db = SessionLocal()
         try:
             job = store.find_or_create_job(
-                db, source, category, city, eff_max, job_id=job_id, seed_job_id=seed_job_id,
+                db, source, category, city, eff_max, job_id=job_id, seed_job_id=seed_job_id, user_id=user_id,
             )
             job_id = job.id
         finally:
@@ -101,18 +102,18 @@ class JobManager:
             # Dapodik mencari per nama entitas target yang butuh enrichment via Playwright headful
             scraper = cls(
                 category=category, city=city, max_results=eff_max,
-                targets=targets, job_id=job_id,
+                targets=targets, job_id=job_id, user_id=user_id,
             )
         elif source == "google":
             # Google web search enrichment via Playwright browser headful
             scraper = cls(
                 category=category, city=city, max_results=eff_max,
-                targets=targets, job_id=job_id,
+                targets=targets, job_id=job_id, user_id=user_id,
             )
         elif source == "gmaps":
-            scraper = cls(category=category, city=city, max_results=eff_max, job_id=job_id)
+            scraper = cls(category=category, city=city, max_results=eff_max, job_id=job_id, user_id=user_id)
         else:
-            scraper = cls(category=category, city=city, max_results=eff_max)
+            scraper = cls(category=category, city=city, max_results=eff_max, user_id=user_id)
         self._running[job_id] = scraper
         scraper.set_progress_callback(
             lambda progress, total, message: self._on_progress(job_id, progress, total, message)

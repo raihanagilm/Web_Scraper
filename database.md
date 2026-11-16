@@ -124,6 +124,7 @@ Audit setiap job scraping (seed/enrichment). `category`/`city` sengaja denormali
 | Kolom | Tipe | Constraint / Default | Keterangan |
 |---|---|---|---|
 | **id** | VARCHAR(36) | PK | Format ringkas: `SCRP_{kategori[:14]}_{YYYYMMDD_HHMMSS}` (atau UUID legacy) |
+| **user_id** | INT | FK → users.id, ON DELETE SET NULL, NULLABLE, index | Pengguna aplikasi yang menjalankan job scraping |
 | **seed_job_id** | VARCHAR(36) | FK → scrape_jobs.id, ON DELETE CASCADE, NULLABLE | Relasi ke seed job scrape (GMaps) induk. Hapus seed job otomatis menghapus enrichment anak |
 | **source** | VARCHAR(50) | NOT NULL | gmaps/dapodik/google |
 | **category** | VARCHAR(100) | default "" | snapshot kategori saat job jalan |

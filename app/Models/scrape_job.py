@@ -12,6 +12,7 @@ class ScrapeJob(Base):
     __tablename__ = "scrape_jobs"
 
     id = Column(String(36), primary_key=True)  # UUID string
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     seed_job_id = Column(String(36), ForeignKey("scrape_jobs.id", ondelete="CASCADE"), nullable=True, index=True)
     source = Column(String(50), nullable=False)
     category = Column(String(100), default="")
@@ -29,6 +30,7 @@ class ScrapeJob(Base):
     started_at = Column(DateTime, nullable=True)
     finished_at = Column(DateTime, nullable=True)
 
+    user = relationship("User", backref="scrape_jobs")
     enrichment_jobs = relationship(
         "ScrapeJob",
         backref=backref("seed_job", remote_side=[id]),

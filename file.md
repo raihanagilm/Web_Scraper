@@ -90,6 +90,7 @@
 ├── database/
 │   ├── migrations/                 # Migrasi DDL & normalisasi database
 │   │   ├── __init__.py
+│   │   ├── add_user_id_to_scrape_jobs.py # Migrasi relasi user_id ke scrape_jobs
 │   │   └── migrate_phase1.py       # Migrasi DB fase 1: normalisasi kategori/kota → lookup
 │   └── seeders/                    # Database Seeders
 │       ├── __init__.py
@@ -367,6 +368,7 @@ app/config.py
 app/main.py
 database.md
 database/migrations/__init__.py
+database/migrations/add_user_id_to_scrape_jobs.py
 database/migrations/migrate_phase1.py
 database/seeders/__init__.py
 database/seeders/user_seeder.py

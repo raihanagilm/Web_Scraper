@@ -36,3 +36,18 @@ def test_login_flow():
         assert r.status_code == 200
         r = client.get("/api/auth/me")
         assert r.status_code == 401, f"after logout me expected 401, got {r.status_code}"
+
+
+def test_admin_create_and_list_users():
+    with TestClient(app) as client:
+        # Tanpa login -> 401
+        assert client.get("/api/auth/users").status_code == 401
+
+        # Login admin
+        r = client.post("/api/auth/login", json={"username": "admin", "password": settings.seed_password})
+        assert r.status_code == 200
+
+        # List users
+        r = client.get("/api/auth/users")
+        assert r.status_code == 200
+        assert any(u["username"] == "admin" for u in r.json())

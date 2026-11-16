@@ -251,6 +251,14 @@ async function bootstrap() {
     const uname = me.username || "user";
     if ($("#user-name")) $("#user-name").textContent = uname;
     if ($("#mobile-user-name")) $("#mobile-user-name").textContent = uname;
+    const navUsers = $("#nav-users");
+    if (navUsers) {
+      if (me.id === 1) {
+        navUsers.classList.remove("hidden");
+      } else {
+        navUsers.classList.add("hidden");
+      }
+    }
     showApp();
     navigate(location.hash.replace("#", "") || "dashboard");
     refreshDedupBadge({ notify: false });
@@ -273,9 +281,18 @@ $("#login-form").addEventListener("submit", async (e) => {
         password: $("#login-password").value,
       },
     });
-    const uname = r.user?.username || "user";
+    const me = r.user || {};
+    const uname = me.username || "user";
     if ($("#user-name")) $("#user-name").textContent = uname;
     if ($("#mobile-user-name")) $("#mobile-user-name").textContent = uname;
+    const navUsers = $("#nav-users");
+    if (navUsers) {
+      if (me.id === 1) {
+        navUsers.classList.remove("hidden");
+      } else {
+        navUsers.classList.add("hidden");
+      }
+    }
     showApp();
     navigate("dashboard");
     refreshDedupBadge({ notify: false });
@@ -346,6 +363,7 @@ function navigate(page) {
   if (page === "enrichment") { loadEnrichmentMeta(); loadEnrichmentJobs(); }
   if (page === "results") { loadFilters(); loadLeads(); }
   if (page === "dedup") loadDedup();
+  if (page === "users") loadUsers();
 }
 
 document.querySelectorAll(".nav-item").forEach((b) =>
@@ -2569,6 +2587,84 @@ $("#btn-dedup-reload").addEventListener("click", async () => {
     showDedupScreenLoading(false);
   }
 });
+
+// ---- User Management (Admin Only) ----
+async function loadUsers() {
+  const tbody = $("#users-table-body");
+  if (!tbody) return;
+  tbody.innerHTML = `<tr><td colspan="4" class="muted text-center">Memuat daftar pengguna...</td></tr>`;
+  try {
+    const users = await api("/api/auth/users");
+    if (!users || users.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="4" class="muted text-center">Belum ada akun pengguna lain.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = users
+      .map(
+        (u) => `
+      <tr>
+        <td><strong>#${u.id}</strong></td>
+        <td><code>${esc(u.username)}</code></td>
+        <td>${esc(u.full_name || "-")}</td>
+        <td class="muted">${u.created_at ? esc(u.created_at.slice(0, 19).replace("T", " ")) : "-"}</td>
+      </tr>
+    `
+      )
+      .join("");
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="4" class="text-danger text-center">Gagal memuat pengguna: ${esc(
+      err.message
+    )}</td></tr>`;
+  }
+}
+
+const formCreateUser = $("#form-create-user");
+if (formCreateUser) {
+  formCreateUser.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = formCreateUser.querySelector("button[type='submit']");
+    const msg = $("#create-user-msg");
+    if (msg) {
+      msg.className = "msg-box hidden";
+      msg.textContent = "";
+    }
+    setButtonLoading(btn, true, "Menyimpan...");
+    try {
+      const username = $("#new-username")?.value.trim();
+      const full_name = $("#new-fullname")?.value.trim();
+      const password = $("#new-password")?.value;
+      await api("/api/auth/users", {
+        method: "POST",
+        body: { username, full_name, password },
+      });
+      showToast({
+        title: "Berhasil",
+        message: `Pengguna "${username}" berhasil ditambahkan.`,
+        type: "success",
+      });
+      if (msg) {
+        msg.className = "msg-box msg-success";
+        msg.textContent = `Pengguna "${username}" berhasil dibuat.`;
+        msg.classList.remove("hidden");
+      }
+      formCreateUser.reset();
+      await loadUsers();
+    } catch (err) {
+      showToast({
+        title: "Gagal",
+        message: err.message,
+        type: "danger",
+      });
+      if (msg) {
+        msg.className = "msg-box msg-danger";
+        msg.textContent = "Gagal: " + err.message;
+        msg.classList.remove("hidden");
+      }
+    } finally {
+      setButtonLoading(btn, false);
+    }
+  });
+}
 
 // ---- Init ----
 bootstrap();
