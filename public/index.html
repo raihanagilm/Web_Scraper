@@ -1,29 +1,37 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Edtekno Lead Scraper</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+    rel="stylesheet" />
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="stylesheet" href="style.css?v=17" />
+  <link rel="stylesheet" href="style.css?v=21" />
 </head>
+
 <body>
 
   <!-- ===== LOGIN ===== -->
   <div id="login-view" class="login-wrap hidden">
     <form id="login-form" class="login-card">
       <div class="login-logo">
-        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-4.35-4.35" />
+        </svg>
       </div>
       <h1>Edtekno Lead Scraper</h1>
       <p class="login-sub">Masuk untuk melanjutkan</p>
       <label for="login-username">Username</label>
       <input id="login-username" type="text" autocomplete="username" placeholder="Masukkan username" required />
       <label for="login-password">Password</label>
-      <input id="login-password" type="password" autocomplete="current-password" placeholder="Masukkan password" required />
+      <input id="login-password" type="password" autocomplete="current-password" placeholder="Masukkan password"
+        required />
       <button type="submit" class="btn btn-primary btn-block">Masuk</button>
       <p id="login-error" class="login-error hidden"></p>
     </form>
@@ -34,10 +42,19 @@
     <!-- Top Mobile Bar (Mobile-First) -->
     <header class="mobile-header">
       <button id="btn-mobile-menu" class="btn-icon mobile-menu-btn" aria-label="Buka navigasi menu" title="Buka menu">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="3" y1="12" x2="21" y2="12" />
+          <line x1="3" y1="6" x2="21" y2="6" />
+          <line x1="3" y1="18" x2="21" y2="18" />
+        </svg>
       </button>
       <div class="mobile-brand">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-4.35-4.35" />
+        </svg>
         <span>Lead Scraper</span>
       </div>
       <div class="mobile-user" id="mobile-user-name">user</div>
@@ -49,44 +66,88 @@
     <aside class="sidebar" id="sidebar">
       <div class="brand">
         <div class="brand-left">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.35-4.35" />
+          </svg>
           <span>Lead Scraper</span>
         </div>
-        <button id="btn-sidebar-close" class="btn-icon sidebar-close-btn" aria-label="Tutup navigasi" title="Tutup menu">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        <button id="btn-sidebar-close" class="btn-icon sidebar-close-btn" aria-label="Tutup navigasi"
+          title="Tutup menu">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
         </button>
       </div>
       <nav class="nav">
         <button class="nav-item active" data-page="dashboard">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" aria-hidden="true">
+            <rect x="3" y="3" width="7" height="9" rx="1" />
+            <rect x="14" y="3" width="7" height="5" rx="1" />
+            <rect x="14" y="12" width="7" height="9" rx="1" />
+            <rect x="3" y="16" width="7" height="5" rx="1" />
+          </svg>
           <span>Dashboard</span>
         </button>
         <button class="nav-item" data-page="scrape">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" aria-hidden="true">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+          </svg>
           <span>Scrape Data</span>
         </button>
         <button class="nav-item" data-page="enrichment">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" aria-hidden="true">
+            <path
+              d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+            <line x1="12" y1="22.08" x2="12" y2="12" />
+          </svg>
           <span>Enrichment Leads</span>
         </button>
         <button class="nav-item" data-page="results">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3h18v18H3z"/><path d="M3 9h18"/><path d="M3 15h18"/></svg>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" aria-hidden="true">
+            <path d="M3 3h18v18H3z" />
+            <path d="M3 9h18" />
+            <path d="M3 15h18" />
+          </svg>
           <span>Hasil Leads</span>
         </button>
         <button class="nav-item" data-page="dedup">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" aria-hidden="true">
+            <rect x="8" y="8" width="13" height="13" rx="2" />
+            <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" />
+          </svg>
           <span>Review Duplikat</span>
           <span id="dedup-badge" class="badge hidden"></span>
         </button>
         <button id="nav-users" class="nav-item hidden" data-page="users">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" aria-hidden="true">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
           <span>Kelola Pengguna</span>
         </button>
       </nav>
       <div class="sidebar-foot">
         <span id="user-name" class="user-name"></span>
         <button id="btn-logout" class="btn btn-ghost btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
           <span>Keluar</span>
         </button>
       </div>
@@ -103,10 +164,19 @@
         </div>
         <div id="stats-cards" class="cards"></div>
         <div class="grid-2">
-          <div class="card"><h3>Per Sumber</h3><ul id="stats-source" class="stat-list"></ul></div>
-          <div class="card"><h3>Per Status</h3><ul id="stats-status" class="stat-list"></ul></div>
+          <div class="card">
+            <h3>Per Sumber</h3>
+            <ul id="stats-source" class="stat-list"></ul>
+          </div>
+          <div class="card">
+            <h3>Per Status</h3>
+            <ul id="stats-status" class="stat-list"></ul>
+          </div>
         </div>
-        <div class="card"><h3>Kota Teratas</h3><ul id="stats-city" class="stat-list"></ul></div>
+        <div class="card">
+          <h3>Kota Teratas</h3>
+          <ul id="stats-city" class="stat-list"></ul>
+        </div>
       </section>
 
       <!-- Scrape -->
@@ -119,25 +189,54 @@
         </div>
 
         <div class="card">
-          <h3>Pencarian Leads Google Maps</h3>
-          <p class="muted">Masukkan kata kunci jenis bisnis/instansi dan target kota. Contoh: "sekolah", "restoran", "perusahaan IT", "toko elektronik", dll.</p>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <h3 style="margin:0;">Pencarian Leads Google Maps</h3>
+            <span class="enrich-badge google"
+              style="margin:0; font-size:11px; background:#ecfdf5; color:#047857; border:1px solid #a7f3d0;">⚡
+              Auto-Enrichment Aktif</span>
+          </div>
+          <p class="muted">Masukkan jenis bisnis dan kota. Sistem otomatis mengekstrak alamat, website, direct WhatsApp,
+            serta akun media sosial (IG, TikTok, FB, Twitter/X, Email) secara instan tanpa perlu klik enrichment
+            terpisah.</p>
           <form id="scrape-form" class="form-row">
-            <div><label for="scrape-keyword">Kata Kunci Pencarian</label><input id="scrape-keyword" type="text" value="sekolah" placeholder="mis. sekolah, restoran, perusahaan" required /></div>
-            <div><label for="scrape-city">Kota</label><input id="scrape-city" type="text" value="salatiga" placeholder="mis. salatiga, semarang, jakarta" required /></div>
-            <div><label for="scrape-max">Maks. hasil</label><input id="scrape-max" type="number" value="50" min="1" max="50" placeholder="mis. 50" required /></div>
-            <button type="button" id="btn-start-scrape" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:6px;">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <div>
+              <label for="scrape-keyword">Kata Kunci Pencarian</label>
+              <input id="scrape-keyword" type="text" value="sekolah" placeholder="mis. sekolah, restoran, perusahaan"
+                required />
+            </div>
+            <div><label for="scrape-city">Kota</label><input id="scrape-city" type="text" value="salatiga"
+                placeholder="mis. salatiga, semarang, jakarta" required /></div>
+            <div><label for="scrape-max">Maks. hasil</label><input id="scrape-max" type="number" value="50" min="1"
+                max="50" placeholder="mis. 50" required /></div>
+            <button type="button" id="btn-start-scrape" class="btn btn-primary"
+              style="display:inline-flex; align-items:center; gap:6px;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
               <span>Mulai Scrape</span>
             </button>
           </form>
           <div class="browser-row">
-            <button type="button" id="btn-browser-login" class="btn btn-ghost btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            <button type="button" id="btn-browser-login" class="btn btn-ghost btn-sm"
+              style="display:inline-flex; align-items:center; gap:6px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
               <span>Buka Browser Login</span>
             </button>
             <!-- Monitor browser (noVNC): menampilkan jendela Chromium di server/VPS (file.md §2.7) -->
-            <a id="btn-browser-monitor" class="btn btn-ghost btn-sm hidden" href="#" target="_blank" rel="noopener" style="align-items:center; gap:6px;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+            <a id="btn-browser-monitor" class="btn btn-ghost btn-sm hidden" href="#" target="_blank" rel="noopener"
+              style="align-items:center; gap:6px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
               <span>Lihat Browser (Monitor)</span>
             </a>
             <span id="browser-login-status" class="form-msg muted">Profil browser: memeriksa...</span>
@@ -148,7 +247,8 @@
         <!-- Riwayat Kategori (dari kata kunci yang pernah dipakai, unik) -->
         <div class="card mt">
           <h3>Riwayat Kategori Cepat</h3>
-          <p class="muted" style="font-size:12px; margin-bottom:8px;">Klik kategori di bawah untuk langsung mengisi kolom kata kunci pencarian:</p>
+          <p class="muted" style="font-size:12px; margin-bottom:8px;">Klik kategori di bawah untuk langsung mengisi
+            kolom kata kunci pencarian:</p>
           <div id="keyword-history" class="tag-cloud"></div>
         </div>
 
@@ -157,16 +257,23 @@
         <div class="card table-card">
           <div class="table-scroll">
             <table>
-              <thead><tr>
-                <th class="th-sort" data-jsort="started_at">Waktu <span class="sort-arrow" aria-hidden="true"></span></th>
-                <th class="th-sort" data-jsort="id">ID Job <span class="sort-arrow" aria-hidden="true"></span></th>
-                <th class="th-sort" data-jsort="category">Kategori <span class="sort-arrow" aria-hidden="true"></span></th>
-                <th class="th-sort" data-jsort="city">Kota <span class="sort-arrow" aria-hidden="true"></span></th>
-                <th class="th-sort" data-jsort="status">Status <span class="sort-arrow" aria-hidden="true"></span></th>
-                <th class="th-sort" data-jsort="progress">Progres <span class="sort-arrow" aria-hidden="true"></span></th>
-                <th class="th-sort" data-jsort="total_found">Ditemukan <span class="sort-arrow" aria-hidden="true"></span></th>
-                <th><span class="sr-only">Aksi</span></th>
-              </tr></thead>
+              <thead>
+                <tr>
+                  <th class="th-sort" data-jsort="started_at">Waktu <span class="sort-arrow" aria-hidden="true"></span>
+                  </th>
+                  <th class="th-sort" data-jsort="id">ID Job <span class="sort-arrow" aria-hidden="true"></span></th>
+                  <th class="th-sort" data-jsort="category">Kategori <span class="sort-arrow" aria-hidden="true"></span>
+                  </th>
+                  <th class="th-sort" data-jsort="city">Kota <span class="sort-arrow" aria-hidden="true"></span></th>
+                  <th class="th-sort" data-jsort="status">Status <span class="sort-arrow" aria-hidden="true"></span>
+                  </th>
+                  <th class="th-sort" data-jsort="progress">Progres <span class="sort-arrow" aria-hidden="true"></span>
+                  </th>
+                  <th class="th-sort" data-jsort="total_found">Ditemukan <span class="sort-arrow"
+                      aria-hidden="true"></span></th>
+                  <th><span class="sr-only">Aksi</span></th>
+                </tr>
+              </thead>
               <tbody id="jobs-body"></tbody>
             </table>
           </div>
@@ -186,12 +293,21 @@
         <div class="card mt" style="background:#f4f9f5; border-color:#c9e0d1;">
           <div style="display:flex; align-items:flex-start; gap:12px;">
             <div style="color:var(--primary); flex-shrink:0; padding-top:2px;">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5.76.76 1.23 1.52 1.41 2.5z"/></svg>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M9 18h6" />
+                <path d="M10 22h4" />
+                <path
+                  d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5.76.76 1.23 1.52 1.41 2.5z" />
+              </svg>
             </div>
             <div>
               <h3 style="margin-bottom:4px; color:var(--primary-hover);">Cara Melakukan Enrichment Data</h3>
               <p class="muted" style="margin:0; line-height:1.5;">
-                Enrichment dilakukan langsung dari data hasil scraping. Buka menu <strong>Scrape Data</strong>, lalu klik tombol <strong>Enrich</strong> pada baris riwayat job yang ingin Anda lengkapi datanya. Anda dapat memilih sumber data pendukung (Pencarian Google / Web atau Dapodik Kemendikbud) sesuai kebutuhan entitas.
+                Enrichment dilakukan langsung dari data hasil scraping. Buka menu <strong>Scrape Data</strong>, lalu
+                klik tombol <strong>Enrich</strong> pada baris riwayat job yang ingin Anda lengkapi datanya. Anda dapat
+                memilih sumber data pendukung (Pencarian Google / Web atau Dapodik Kemendikbud) sesuai kebutuhan
+                entitas.
               </p>
             </div>
           </div>
@@ -201,7 +317,13 @@
           <h3>Field yang Diisi per Sumber Enrichment</h3>
           <div class="table-scroll">
             <table class="info-table">
-              <thead><tr><th>Sumber</th><th>Status</th><th>Field yang Diisi</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Sumber</th>
+                  <th>Status</th>
+                  <th>Field yang Diisi</th>
+                </tr>
+              </thead>
               <tbody id="enrich-fields-body"></tbody>
             </table>
           </div>
@@ -211,16 +333,24 @@
         <div class="card table-card">
           <div class="table-scroll">
             <table>
-              <thead><tr>
-                <th class="th-sort" data-esort="started_at">Waktu <span class="sort-arrow" aria-hidden="true"></span></th>
-                <th class="th-sort" data-esort="source">Sumber <span class="sort-arrow" aria-hidden="true"></span></th>
-                <th class="th-sort" data-esort="category">Kategori <span class="sort-arrow" aria-hidden="true"></span></th>
-                <th class="th-sort" data-esort="city">Kota <span class="sort-arrow" aria-hidden="true"></span></th>
-                <th class="th-sort" data-esort="status">Status <span class="sort-arrow" aria-hidden="true"></span></th>
-                <th class="th-sort" data-esort="progress">Progres <span class="sort-arrow" aria-hidden="true"></span></th>
-                <th class="th-sort" data-esort="total_found">Ditemukan <span class="sort-arrow" aria-hidden="true"></span></th>
-                <th><span class="sr-only">Aksi</span></th>
-              </tr></thead>
+              <thead>
+                <tr>
+                  <th class="th-sort" data-esort="started_at">Waktu <span class="sort-arrow" aria-hidden="true"></span>
+                  </th>
+                  <th class="th-sort" data-esort="source">Sumber <span class="sort-arrow" aria-hidden="true"></span>
+                  </th>
+                  <th class="th-sort" data-esort="category">Kategori <span class="sort-arrow" aria-hidden="true"></span>
+                  </th>
+                  <th class="th-sort" data-esort="city">Kota <span class="sort-arrow" aria-hidden="true"></span></th>
+                  <th class="th-sort" data-esort="status">Status <span class="sort-arrow" aria-hidden="true"></span>
+                  </th>
+                  <th class="th-sort" data-esort="progress">Progres <span class="sort-arrow" aria-hidden="true"></span>
+                  </th>
+                  <th class="th-sort" data-esort="total_found">Ditemukan <span class="sort-arrow"
+                      aria-hidden="true"></span></th>
+                  <th><span class="sr-only">Aksi</span></th>
+                </tr>
+              </thead>
               <tbody id="enrich-jobs-body"></tbody>
             </table>
           </div>
@@ -234,86 +364,131 @@
             <p class="muted page-sub">Kelola, saring, edit cepat, dan ekspor seluruh database kontak leads</p>
           </div>
           <div class="actions">
-            <input id="import-file" type="file" accept=".csv" aria-label="Pilih file CSV untuk diimpor" title="Pilih file CSV untuk diimpor" class="hidden" />
+            <input id="import-file" type="file" accept=".csv" aria-label="Pilih file CSV untuk diimpor"
+              title="Pilih file CSV untuk diimpor" class="hidden" />
             <button id="btn-import" class="btn btn-ghost" style="display:inline-flex; align-items:center; gap:6px;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
               <span>Import CSV</span>
             </button>
             <button id="btn-export-csv" class="btn btn-ghost" style="display:inline-flex; align-items:center; gap:6px;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
               <span>Export CSV</span>
             </button>
             <button id="btn-export" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:6px;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="8" y1="13" x2="16" y2="13" />
+                <line x1="8" y1="17" x2="16" y2="17" />
+              </svg>
               <span>Export Excel</span>
             </button>
           </div>
         </div>
         <div class="card">
           <div class="filters">
-            <input id="f-search" type="text" placeholder="Cari nama, alamat, email, kategori..." aria-label="Pencarian lead" />
-            <select id="f-category" aria-label="Filter kategori"><option value="">Semua kategori</option></select>
-            <select id="f-kota" aria-label="Filter kota"><option value="">Semua kota</option></select>
+            <input id="f-search" type="text" placeholder="Cari nama, alamat, email, kategori..."
+              aria-label="Pencarian lead" />
+            <select id="f-category" aria-label="Filter kategori">
+              <option value="">Semua kategori</option>
+            </select>
+            <select id="f-kota" aria-label="Filter kota">
+              <option value="">Semua kota</option>
+            </select>
             <select id="f-status" aria-label="Filter status">
               <option value="">Semua status</option>
-              <option>New</option><option>Contacted</option><option>Follow Up</option><option>Deal</option><option>Rejected</option>
+              <option>New</option>
+              <option>Contacted</option>
+              <option>Follow Up</option>
+              <option>Deal</option>
+              <option>Rejected</option>
             </select>
             <button id="btn-filter" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:6px;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+              </svg>
               <span>Terapkan</span>
             </button>
-            <button id="btn-reset-filter" class="btn btn-ghost" title="Reset semua filter & sorting" style="display:inline-flex; align-items:center; gap:6px;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+            <button id="btn-reset-filter" class="btn btn-ghost" title="Reset semua filter & sorting"
+              style="display:inline-flex; align-items:center; gap:6px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                <path d="M3 3v5h5" />
+                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                <path d="M16 21h5v-5" />
+              </svg>
               <span>Reset</span>
             </button>
           </div>
         </div>
         <div id="bulk-bar" class="bulk-bar hidden">
           <span id="bulk-count">0 lead dipilih</span>
-          <button id="btn-bulk-delete" class="btn btn-danger btn-sm" style="display:inline-flex; align-items:center; gap:5px;">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="m19 6-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+          <button id="btn-bulk-delete" class="btn btn-danger btn-sm"
+            style="display:inline-flex; align-items:center; gap:5px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 6h18" />
+              <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+              <path d="m19 6-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+            </svg>
             <span>Hapus Terpilih</span>
           </button>
-          <button id="btn-clear-selection" class="btn btn-ghost btn-sm" title="Batal pilih semua" style="display:inline-flex; align-items:center; gap:5px;">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <button id="btn-clear-selection" class="btn btn-ghost btn-sm" title="Batal pilih semua"
+            style="display:inline-flex; align-items:center; gap:5px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
             <span>Batal</span>
           </button>
         </div>
         <div class="card table-card">
           <div class="table-scroll">
-          <table>
-            <thead><tr>
-              <th class="col-check"><input type="checkbox" id="sel-all" aria-label="Pilih semua lead di halaman ini" /></th>
-              <th>No</th>
-              <th class="th-sort" data-sort="kode">Kode ID <span class="sort-arrow" aria-hidden="true"></span></th>
-              <th class="th-sort" data-sort="nama_instansi">Nama Instansi <span class="sort-arrow" aria-hidden="true"></span></th>
-              <th class="th-sort" data-sort="kategori">Bidang Usaha / Kategori <span class="sort-arrow" aria-hidden="true"></span></th>
-              <th class="th-sort" data-sort="telp">No. WA / Telepon <span class="sort-arrow" aria-hidden="true"></span></th>
-              <th class="th-sort" data-sort="email">Alamat Email <span class="sort-arrow" aria-hidden="true"></span></th>
-              <th class="th-sort" data-sort="alamat">Alamat Lengkap <span class="sort-arrow" aria-hidden="true"></span></th>
-              <th class="th-sort" data-sort="kota">Kota <span class="sort-arrow" aria-hidden="true"></span></th>
-              <th class="th-sort" data-sort="link_gmaps">Link Gmaps <span class="sort-arrow" aria-hidden="true"></span></th>
-              <th class="th-sort" data-sort="website">Link Website <span class="sort-arrow" aria-hidden="true"></span></th>
-              <th class="th-sort" data-sort="sosmed">Akun Media Sosial <span class="sort-arrow" aria-hidden="true"></span></th>
-              <th class="th-sort" data-sort="npsn">NPSN <span class="sort-arrow" aria-hidden="true"></span></th>
-              <th class="th-sort" data-sort="nama_kepsek">Nama Kepsek <span class="sort-arrow" aria-hidden="true"></span></th>
-              <th class="th-sort" data-sort="link_source">Link Kemendikdasmen <span class="sort-arrow" aria-hidden="true"></span></th>
-              <th class="th-sort" data-sort="source">Sumber <span class="sort-arrow" aria-hidden="true"></span></th>
-              <th class="th-sort" data-sort="status">Status <span class="sort-arrow" aria-hidden="true"></span></th>
-              <th><span class="sr-only">Aksi</span></th>
-            </tr></thead>
-            <tbody id="leads-body"></tbody>
-          </table>
+            <table>
+              <thead>
+                <tr>
+                  <th class="col-check"><input type="checkbox" id="sel-all" aria-label="Pilih semua lead di halaman ini" /></th>
+                  <th class="col-no">No</th>
+                  <th class="th-sort col-instansi" data-sort="nama_instansi">Instansi / Bisnis <span class="sort-arrow" aria-hidden="true"></span></th>
+                  <th class="th-sort col-kategori" data-sort="kategori">Kategori <span class="sort-arrow" aria-hidden="true"></span></th>
+                  <th class="col-kontak">Kontak &amp; Medsos</th>
+                  <th class="th-sort col-alamat" data-sort="alamat">Alamat &amp; Kota <span class="sort-arrow" aria-hidden="true"></span></th>
+                  <th class="th-sort col-status" data-sort="status">Status <span class="sort-arrow" aria-hidden="true"></span></th>
+                  <th class="col-aksi"><span class="sr-only">Aksi</span></th>
+                </tr>
+              </thead>
+              <tbody id="leads-body"></tbody>
+            </table>
           </div>
           <div class="pager">
             <button id="pg-prev" class="btn btn-ghost btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
               <span>Sebelumnya</span>
             </button>
             <span id="pg-info" class="pg-info"></span>
             <button id="pg-next" class="btn btn-ghost btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
               <span>Berikutnya</span>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
             </button>
           </div>
         </div>
@@ -327,14 +502,24 @@
             <p class="muted page-sub">Tinjau dan satukan entitas leads yang terdeteksi serupa dalam database</p>
           </div>
           <div class="actions">
-            <button id="btn-dedup-reload" class="btn btn-ghost" style="display:inline-flex; align-items:center; gap:6px;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+            <button id="btn-dedup-reload" class="btn btn-ghost"
+              style="display:inline-flex; align-items:center; gap:6px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                <path d="M3 3v5h5" />
+                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                <path d="M16 21h5v-5" />
+              </svg>
               <span>Muat Ulang</span>
             </button>
           </div>
         </div>
         <p id="dedup-empty" class="muted hidden" style="display:flex; align-items:center; gap:8px;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2f6b4f" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2f6b4f" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
           <span>Tidak ada kandidat duplikat. Database bersih dari entitas ganda.</span>
         </p>
         <div id="dedup-list"></div>
@@ -351,7 +536,8 @@
 
         <div class="card" style="margin-bottom: 24px;">
           <h3 style="margin-bottom: 16px;">Tambah Pengguna Baru</h3>
-          <form id="form-create-user" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) 120px; gap: 12px; align-items: end;">
+          <form id="form-create-user"
+            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) 120px; gap: 12px; align-items: end;">
             <div class="field">
               <label for="new-username">Username</label>
               <input id="new-username" type="text" placeholder="misal: staf_andi" required />
@@ -384,7 +570,9 @@
                 </tr>
               </thead>
               <tbody id="users-table-body">
-                <tr><td colspan="4" class="muted text-center">Memuat daftar pengguna...</td></tr>
+                <tr>
+                  <td colspan="4" class="muted text-center">Memuat daftar pengguna...</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -399,32 +587,46 @@
       <div class="modal-head">
         <h3 id="modal-title">Edit Lead</h3>
         <button id="modal-close" class="btn-icon modal-x" aria-label="Tutup" title="Tutup">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
         </button>
       </div>
       <form id="edit-form" class="modal-body">
         <input type="hidden" id="edit-id" />
         <div class="form-grid">
-          <label>Kode ID<input id="edit-kode" type="text" readonly style="background:#f1f5f9;font-family:monospace;font-weight:600;" /></label>
+          <label>Kode ID<input id="edit-kode" type="text" readonly
+              style="background:#f1f5f9;font-family:monospace;font-weight:600;" /></label>
           <label>Nama Instansi<input id="edit-nama_instansi" type="text" required /></label>
-          <label>Kategori<input id="edit-kategori" type="text" list="kategori-list" placeholder="mis. sekolah" /><datalist id="kategori-list"></datalist></label>
+          <label>Kategori<input id="edit-kategori" type="text" list="kategori-list"
+              placeholder="mis. sekolah" /><datalist id="kategori-list"></datalist></label>
           <label>No. WA / Telepon<input id="edit-telp" type="text" /></label>
-          <label>Alamat Email (bisa &gt;1, pisahkan koma)<input id="edit-email" type="text" placeholder="email1@domain.com, email2@domain.com" /></label>
+          <label>Alamat Email (bisa &gt;1, pisahkan koma)<input id="edit-email" type="text"
+              placeholder="email1@domain.com, email2@domain.com" /></label>
           <label class="span-2">Alamat Lengkap<textarea id="edit-alamat" rows="2"></textarea></label>
-          <label>Kota<input id="edit-kota" type="text" list="kota-list" placeholder="mis. salatiga" /><datalist id="kota-list"></datalist></label>
+          <label>Kota<input id="edit-kota" type="text" list="kota-list" placeholder="mis. salatiga" /><datalist
+              id="kota-list"></datalist></label>
           <label>Link Gmaps<input id="edit-link_gmaps" type="url" /></label>
           <label>Link Website<input id="edit-website" type="url" /></label>
-          <label>Instagram<input id="edit-instagram" type="text" placeholder="https://instagram.com/... atau @username" /></label>
+          <label>Instagram<input id="edit-instagram" type="text"
+              placeholder="https://instagram.com/... atau @username" /></label>
           <label>Facebook<input id="edit-facebook" type="text" placeholder="https://facebook.com/..." /></label>
           <label>LinkedIn<input id="edit-linkedin" type="text" placeholder="https://linkedin.com/in/..." /></label>
           <label>Twitter / X<input id="edit-twitter_x" type="text" placeholder="https://x.com/..." /></label>
-          <label>TikTok<input id="edit-tiktok" type="text" placeholder="https://tiktok.com/@... atau @username" /></label>
+          <label>TikTok<input id="edit-tiktok" type="text"
+              placeholder="https://tiktok.com/@... atau @username" /></label>
           <label>Media Sosial Lainnya<input id="edit-sosmed" type="text" /></label>
           <label>NPSN<input id="edit-npsn" type="text" /></label>
           <label>Nama Kepsek<input id="edit-nama_kepsek" type="text" /></label>
           <label>Status
             <select id="edit-status">
-              <option>New</option><option>Contacted</option><option>Follow Up</option><option>Deal</option><option>Rejected</option>
+              <option>New</option>
+              <option>Contacted</option>
+              <option>Follow Up</option>
+              <option>Deal</option>
+              <option>Rejected</option>
             </select>
           </label>
         </div>
@@ -455,17 +657,29 @@
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="enrich-modal-title" style="max-width: 540px;">
       <div class="modal-head">
         <h3 id="enrich-modal-title" style="display:flex; align-items:center; gap:8px;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+          </svg>
           <span>Pilih Sumber Enrichment Data</span>
         </h3>
         <button id="modal-enrich-close" class="btn-icon modal-x" aria-label="Tutup" title="Tutup">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
         </button>
       </div>
       <div class="modal-body">
         <div id="enrich-target-info" class="enrich-target-badge">
           <span style="display:inline-flex; align-items:center; gap:6px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <circle cx="12" cy="12" r="6" />
+              <circle cx="12" cy="12" r="2" />
+            </svg>
             <span>Target: <strong id="enrich-modal-target-text">-</strong></span>
           </span>
         </div>
@@ -480,13 +694,21 @@
             <div class="enrich-card-content">
               <div class="enrich-card-title">
                 <span style="display:flex; align-items:center; gap:6px;">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="2" y1="12" x2="22" y2="12" />
+                    <path
+                      d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                  </svg>
                   <span>Pencarian Google / Web</span>
                 </span>
                 <span class="enrich-badge-rec" id="badge-rec-google">Rekomendasi Umum</span>
               </div>
-              <div class="enrich-card-fields">Field: <strong>No. WA/Telepon, Alamat Email, Link Website, Instagram</strong></div>
-              <div class="enrich-card-targets">Cocok untuk: Rumah Sakit, Klinik, Hotel, Toko, Kafe/Restoran, UMKM, dll.</div>
+              <div class="enrich-card-fields">Field: <strong>No. WA/Telepon, Alamat Email, Link Website,
+                  Instagram</strong></div>
+              <div class="enrich-card-targets">Cocok untuk: Rumah Sakit, Klinik, Hotel, Toko, Kafe/Restoran, UMKM, dll.
+              </div>
             </div>
           </label>
 
@@ -496,12 +718,17 @@
             <div class="enrich-card-content">
               <div class="enrich-card-title">
                 <span style="display:flex; align-items:center; gap:6px;">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+                    <path d="M6 12v5c3 3 9 3 12 0v-5" />
+                  </svg>
                   <span>Dapodik Kemendikbud</span>
                 </span>
                 <span class="enrich-badge-rec hidden" id="badge-rec-dapodik">Rekomendasi Sekolah</span>
               </div>
-              <div class="enrich-card-fields">Field: <strong>NPSN, Nama Kepala Sekolah, Email Resmi Sekolah</strong></div>
+              <div class="enrich-card-fields">Field: <strong>NPSN, Nama Kepala Sekolah, Email Resmi Sekolah</strong>
+              </div>
               <div class="enrich-card-targets">Cocok untuk: SD, SMP, SMA, SMK, Madrasah, Sekolah Internasional</div>
             </div>
           </label>
@@ -511,8 +738,12 @@
 
         <div class="modal-foot">
           <button type="button" id="modal-enrich-cancel" class="btn btn-ghost">Batal</button>
-          <button type="button" id="modal-enrich-submit" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:6px;">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <button type="button" id="modal-enrich-submit" class="btn btn-primary"
+            style="display:inline-flex; align-items:center; gap:6px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+            </svg>
             <span>Mulai Enrichment</span>
           </button>
         </div>
@@ -527,13 +758,17 @@
   <div id="dedup-loading-overlay" class="dedup-loading-overlay hidden" role="status" aria-live="assertive">
     <div class="dedup-loading-card">
       <div class="dedup-loading-icon-wrap">
-        <svg class="spin-svg dedup-spinner" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+        <svg class="spin-svg dedup-spinner" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+        </svg>
       </div>
       <h4 id="dedup-loading-title">Memperbarui Data Duplikat</h4>
       <p id="dedup-loading-desc" class="muted">Mohon tunggu sebentar, data sedang diselaraskan...</p>
     </div>
   </div>
 
-  <script src="app.js?v=19"></script>
+  <script src="app.js?v=21"></script>
 </body>
+
 </html>

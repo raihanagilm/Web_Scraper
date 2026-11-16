@@ -27,11 +27,10 @@ from app.Services.browser_profile import build_browser_args
 from app.config import settings
 
 # ---- Konfigurasi endpoint Kemendikdasmen (PRD v1.1 §5.2) ----
-REFERENSI_SEARCH_URL = "https://referensi.data.kemendikdasmen.go.id/pendidikan/cari/{keyword}"
-REFERENSI_DETAIL_URL = "https://referensi.data.kemendikdasmen.go.id/pendidikan/npsn/{npsn}"
+REFERENSI_SEARCH_URL = "https://referensi.data.kemendikdasmen.go.id/satpen/cari?q={keyword}"
+REFERENSI_DETAIL_URL = "https://referensi.data.kemendikdasmen.go.id/satpen/detail/{npsn}"
 
 NPSN_RE = re.compile(r"\b(\d{8})\b")
-# Regex untuk mengekstrak baris data Javascript DataTables dari halaman pencarian
 CARI_ROW_RE = re.compile(
     r'/pendidikan/npsn/(\d{8})[^>]*>.*?,\s*"([^"]+)",\s*"([^"]+)",\s*"([^"]+)"',
     re.DOTALL
@@ -39,6 +38,26 @@ CARI_ROW_RE = re.compile(
 
 NAME_THRESHOLD = 0.50
 CITY_BONUS = 0.25
+
+
+def _extract_search_matches(html: str) -> list[tuple[str, str, str, str]]:
+    """Ekstrak (npsn, nama, kec, kab_kota) dari HTML tabel pencarian Kemendikdasmen."""
+    matches = []
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+        for tr in soup.find_all("tr"):
+            tds = tr.find_all("td")
+            if len(tds) >= 3:
+                npsn = tds[1].get_text(strip=True)
+                nama = tds[2].get_text(strip=True)
+                wil = tds[5].get_text(strip=True) if len(tds) > 5 else ""
+                if npsn.isdigit() and len(npsn) == 8:
+                    matches.append((npsn, nama, wil, wil))
+    except Exception:
+        pass
+    if not matches:
+        matches = CARI_ROW_RE.findall(html)
+    return matches
 
 
 class DapodikScraper(BaseScraper):
@@ -160,70 +179,95 @@ class DapodikScraper(BaseScraper):
 
     # ---- Browser Lookup Methods ----
 
+    def _find_best_npsn(self, clean_name: str, matches: list) -> str:
+        best_npsn, best_score = "", 0.0
+        norm_target = self._norm(clean_name)
+        city_l = self.city.strip().lower()
+        for npsn, found_name, kec, kab_kota in matches:
+            norm_found = self._norm(found_name)
+            score = difflib.SequenceMatcher(None, norm_target, norm_found).ratio()
+            if city_l and city_l in (kab_kota + " " + kec + " " + found_name).lower():
+                score += CITY_BONUS
+            if score > best_score:
+                best_score = score
+                best_npsn = npsn
+        return best_npsn if best_score >= NAME_THRESHOLD else ""
+
     def _lookup_school_browser(self, page, name: str) -> dict | None:
         """Cari 1 sekolah di referensi Kemendikdasmen via Playwright."""
         clean_name = re.sub(r'["\']', '', name).strip()
-        q = urllib.parse.quote(clean_name)
-        url = REFERENSI_SEARCH_URL.format(keyword=q)
+        url = REFERENSI_SEARCH_URL.format(keyword=urllib.parse.quote(clean_name))
 
         page.goto(url, timeout=30000, wait_until="domcontentloaded")
         time.sleep(1.5)
 
-        html = page.content()
-        matches = CARI_ROW_RE.findall(html)
+        matches = _extract_search_matches(page.content())
         if not matches:
             tokens = [t for t in clean_name.split() if len(t) > 2]
             if len(tokens) > 2:
                 short_q = urllib.parse.quote(" ".join(tokens[:3]))
                 page.goto(REFERENSI_SEARCH_URL.format(keyword=short_q), timeout=30000, wait_until="domcontentloaded")
                 time.sleep(1.5)
-                html = page.content()
-                matches = CARI_ROW_RE.findall(html)
+                matches = _extract_search_matches(page.content())
 
-        if not matches:
+        best_npsn = self._find_best_npsn(clean_name, matches)
+        if not best_npsn:
             return None
 
-        best_npsn, best_score = "", 0.0
-        norm_target = self._norm(clean_name)
-        city_l = self.city.strip().lower()
-
-        for npsn, found_name, kec, kab_kota in matches:
-            norm_found = self._norm(found_name)
-            score = difflib.SequenceMatcher(None, norm_target, norm_found).ratio()
-            kab_kec_str = (kab_kota + " " + kec + " " + found_name).lower()
-            if city_l and city_l in kab_kec_str:
-                score += CITY_BONUS
-            if score > best_score:
-                best_score = score
-                best_npsn = npsn
-
-        if best_score < NAME_THRESHOLD or not best_npsn:
-            return None
-
-        # Buka halaman detail di browser agar terlihat oleh pengguna
         detail_url = REFERENSI_DETAIL_URL.format(npsn=best_npsn)
         page.goto(detail_url, timeout=30000, wait_until="domcontentloaded")
         time.sleep(1)
-
-        detail_html = page.content()
-        return self._parse_detail_html(detail_html, best_npsn, detail_url)
+        return self._parse_detail_html(page.content(), best_npsn, detail_url)
 
     @staticmethod
     def _parse_detail_html(detail_html: str, best_npsn: str = "", detail_url: str = "") -> dict:
         res = {"npsn": best_npsn, "link_source": detail_url, "nama_kepsek": "", "email": ""}
+        try:
+            soup = BeautifulSoup(detail_html, "html.parser")
+            for row in soup.find_all("div", class_="detail-row"):
+                lbl_el = row.find("div", class_="detail-label")
+                val_el = row.find("div", class_="detail-value")
+                if not lbl_el or not val_el:
+                    continue
+                lbl = lbl_el.get_text(strip=True).lower()
+                val = val_el.get_text(strip=True)
+                if "email" in lbl and not res["email"]:
+                    res["email"] = val.replace(" ", "")
+                elif "kepala sekolah" in lbl and not res["nama_kepsek"] and val != "-":
+                    res["nama_kepsek"] = val
 
-        m_email = re.search(r'Email</td>\s*<td>:</td>\s*<td>\s*([^<\s]+@[^<\s]+)', detail_html, re.IGNORECASE)
-        if m_email:
-            res["email"] = m_email.group(1).strip()
+            # Format tabel tr > td klasik (fallback)
+            for tr in soup.find_all("tr"):
+                tds = tr.find_all("td")
+                if len(tds) >= 2:
+                    lbl = tds[0].get_text(strip=True).lower()
+                    val = tds[-1].get_text(strip=True)
+                    if "email" in lbl and not res["email"]:
+                        res["email"] = val.replace(" ", "")
+                    elif "kepala sekolah" in lbl and not res["nama_kepsek"] and val != "-":
+                        res["nama_kepsek"] = val
+        except Exception:
+            pass
 
-        m_kepsek = re.search(
-            r'(?:Kepala\s*Sekolah|Kepsek)\s*</td>\s*<td>:</td>\s*<td>\s*([^<]+)',
-            detail_html, re.IGNORECASE
-        )
-        if m_kepsek:
-            raw_name = m_kepsek.group(1).strip()
-            if raw_name and raw_name != "-":
-                res["nama_kepsek"] = raw_name
+        # Fallback regex
+        if not res["email"]:
+            m_email = re.search(r'Email(?:</td>\s*<td>:</td>\s*<td>|\s*:\s*|\s+)([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})', detail_html, re.IGNORECASE)
+            if m_email:
+                res["email"] = m_email.group(1).strip()
+            else:
+                m_raw = re.search(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}', detail_html)
+                if m_raw:
+                    res["email"] = m_raw.group(0)
+
+        if not res["nama_kepsek"]:
+            m_kepsek = re.search(
+                r'(?:Kepala\s*Sekolah|Kepsek)\s*(?:</td>\s*<td>:</td>\s*<td>|:|\s+)\s*([^<\n\r]+)',
+                detail_html, re.IGNORECASE
+            )
+            if m_kepsek:
+                raw_name = m_kepsek.group(1).strip()
+                if raw_name and raw_name != "-" and not any(kw in raw_name.lower() for kw in ["operator", "akreditasi"]):
+                    res["nama_kepsek"] = raw_name
 
         return res
 
@@ -259,28 +303,16 @@ class DapodikScraper(BaseScraper):
         }
         with httpx.Client(verify=False, timeout=15.0, headers=headers, follow_redirects=True) as client:
             clean_name = re.sub(r'["\']', '', name).strip()
-            q = urllib.parse.quote(clean_name)
-            url = REFERENSI_SEARCH_URL.format(keyword=q)
+            url = REFERENSI_SEARCH_URL.format(keyword=urllib.parse.quote(clean_name))
             resp = client.get(url)
             if resp.status_code != 200:
                 return None
-            matches = CARI_ROW_RE.findall(resp.text)
+            matches = _extract_search_matches(resp.text)
             if not matches:
                 return None
 
-            best_npsn, best_score = "", 0.0
-            norm_target = self._norm(clean_name)
-            city_l = self.city.strip().lower()
-            for npsn, found_name, kec, kab_kota in matches:
-                norm_found = self._norm(found_name)
-                score = difflib.SequenceMatcher(None, norm_target, norm_found).ratio()
-                if city_l and city_l in (kab_kota + " " + kec).lower():
-                    score += CITY_BONUS
-                if score > best_score:
-                    best_score = score
-                    best_npsn = npsn
-
-            if best_score < NAME_THRESHOLD or not best_npsn:
+            best_npsn = self._find_best_npsn(clean_name, matches)
+            if not best_npsn:
                 return None
 
             detail_url = REFERENSI_DETAIL_URL.format(npsn=best_npsn)

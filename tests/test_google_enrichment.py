@@ -42,3 +42,34 @@ def test_extract_from_text_method():
     assert email == "info@rskensaras.com"
     assert "instagram.com/rskensaras" in ig
 
+
+def test_website_enricher_html_extraction():
+    """Pastikan WebsiteContactEnricher mampu mengekstrak WhatsApp, email, dan seluruh medsos dari HTML."""
+    from app.Services.scrapers.website_enricher import WebsiteContactEnricher
+    enricher = WebsiteContactEnricher()
+    sample_html = """
+    <html>
+      <head><title>Profil Bisnis</title></head>
+      <body>
+        <header>
+          <a href="mailto:official@perusahaan.co.id">Email Kami</a>
+          <a href="https://wa.me/6285712345678?text=Halo">Chat WhatsApp</a>
+        </header>
+        <footer>
+          <a href="https://www.instagram.com/bisnis_indonesia/">Instagram</a>
+          <a href="https://www.facebook.com/bisnisindonesia.page/">Facebook</a>
+          <a href="https://www.tiktok.com/@bisnis_tiktok">TikTok</a>
+          <a href="https://x.com/bisnis_official">Twitter X</a>
+        </footer>
+      </body>
+    </html>
+    """
+    res = enricher._extract_from_html(sample_html, "https://perusahaan.co.id")
+    assert res["telp"] == "6285712345678"
+    assert res["email"] == "official@perusahaan.co.id"
+    assert "instagram.com/bisnis_indonesia" in res["instagram"]
+    assert "facebook.com/bisnisindonesia.page" in res["facebook"]
+    assert "tiktok.com/@bisnis_tiktok" in res["tiktok"]
+    assert "x.com/bisnis_official" in res["twitter_x"]
+
+

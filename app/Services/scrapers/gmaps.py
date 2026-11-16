@@ -18,6 +18,7 @@ from playwright.sync_api import sync_playwright
 
 from app.Services.scrapers.base import BaseScraper
 from app.Services.cleaner import normalize_phone, clean_social_url, is_valid_website
+from app.Services.scrapers.website_enricher import WebsiteContactEnricher
 from app.config import settings
 from app.Services.browser_profile import (
     launch_login_browser_context,
@@ -123,6 +124,64 @@ class GmapsScraper(BaseScraper):
         keyword = CATEGORY_KEYWORDS.get(self.category.strip().lower(), self.category.strip())
         return f"{keyword} di {self.city}"
 
+    def _is_city_match(self, alamat: str) -> bool:
+        """Validasi apakah alamat masih berada di wilayah kota target (anti-nyasar)."""
+        if not alamat or alamat == "-" or not self.city:
+            return True
+        c = self.city.strip().lower()
+        a = alamat.lower()
+        # Jika nama kota langsung ada di teks alamat -> valid
+        if c in a:
+            return True
+
+        # Daftar kota/kabupaten lain di Indonesia untuk mendeteksi hasil rekomendasi yang meluber
+        known_other_cities = [
+            "semarang", "surakarta", "solo", "salatiga", "magelang", "pekalongan", "tegal",
+            "kudus", "pati", "jepara", "demak", "kendal", "batang", "boyolali", "klaten",
+            "sukoharjo", "karanganyar", "sragen", "wonogiri", "purwokerto", "banyumas",
+            "cilacap", "kebumen", "purworejo", "temanggung", "wonosobo", "brebes", "pemalang",
+            "jogja", "yogyakarta", "sleman", "bantul", "kulon progo", "gunungkidul",
+            "surabaya", "malang", "sidoarjo", "gresik", "bandung", "jakarta", "bekasi", "tangerang", "bogor"
+        ]
+        for other in known_other_cities:
+            if other != c and other in a and not (c in other or other in c):
+                return False
+        return True
+
+    def _is_category_match(self, name: str, category_text: str) -> bool:
+        """Validasi apakah entitas sesuai dengan kategori pencarian (anti-salah kategori)."""
+        cat_lower = self.category.strip().lower()
+        name_lower = name.strip().lower()
+        ct_lower = category_text.strip().lower()
+
+        # 1. Kategori Sekolah
+        if cat_lower == "sekolah" or "sekolah" in cat_lower:
+            if not re.search(VALID_SCHOOL, name_lower):
+                if not re.search(r'(?i)\b(sekolah|school|madrasah|pesantren|universitas|akademi|politeknik|college|institut)\b', ct_lower):
+                    return False
+            if re.search(INVALID_SCHOOL, name_lower) and not re.search(r'(?i)\b(sekolah|school|sd|smp|sma|smk|madrasah|pesantren|tk|paud|slb)\b', name_lower):
+                return False
+            if re.search(r'(?i)\b(toko|fotokopi|percetakan|bengkel|dealer|agen|counter|pulsa|laundry|salon)\b', ct_lower):
+                return False
+            return True
+
+        # 2. Kategori Kafe / Resto
+        if cat_lower in ("kafe", "cafe", "resto", "restoran"):
+            if ct_lower:
+                fnb_pattern = r'(?i)\b(kafe|cafe|kopi|coffee|resto|restoran|rumah makan|warung|kuliner|bakso|mie|food|beverage|snack|kedai|bistro|eatery)\b'
+                if not re.search(fnb_pattern, ct_lower) and not re.search(fnb_pattern, name_lower):
+                    if re.search(r'(?i)\b(apotek|bank|bengkel|toko|salon|laundry|klinik|kantor|dealer|fotokopi)\b', ct_lower):
+                        return False
+            return True
+
+        # 3. Kategori Perusahaan / Corporate
+        if cat_lower in ("corporate", "perusahaan"):
+            if ct_lower and re.search(r'(?i)\b(warung|toko kelontong|pasar|penjual|kios)\b', ct_lower):
+                return False
+            return True
+
+        return True
+
     def _is_target(self, name: str) -> bool:
         """Filter nama: hanya untuk kategori sekolah; umum tidak difilter keras."""
         cat = self.category.strip().lower()
@@ -137,114 +196,132 @@ class GmapsScraper(BaseScraper):
         return True
 
     def _extract_detail(self, page) -> dict:
-        """Setelah klik listing, ekstrak semua field dari halaman detail."""
-        time.sleep(1.5)
-
-        # Scroll panel detail ke bawah secara langsung agar link medsos / website termuat
+        """Setelah klik listing, ekstrak field khusus dari panel detail aktif (div[role="main"])."""
+        # Tunggu panel detail siap secara cepat
         try:
-            page.evaluate("""() => {
-                const main = document.querySelector('div[role="main"]');
-                if (main) main.scrollTop = main.scrollHeight;
-            }""")
-            time.sleep(1.0)
+            page.locator('div[role="main"]').wait_for(state="visible", timeout=1200)
         except Exception:
             pass
 
         alamat = "-"
+        kategori_gmaps = ""
+        telp = ""
+        website = ""
+        instagram = ""
+        facebook = ""
+        tiktok = ""
+        twitter_x = ""
+        linkedin = ""
+        email = ""
+        npsn = ""
+
+        # 1. Alamat
         try:
-            addr_el = page.locator('button[data-item-id="address"] div.Io6YTe')
+            addr_el = page.locator('div[role="main"] button[data-item-id="address"] div.Io6YTe')
             if addr_el.count() > 0:
                 alamat = addr_el.first.inner_text().strip()
         except Exception:
             pass
 
-        telp = "-"
+        # 2. Kategori Resmi Google Maps
         try:
-            telp_el = page.locator('button[data-item-id^="phone:tel:"] div.Io6YTe')
+            cat_loc = page.locator('div[role="main"] button[jsaction*="category"], div[role="main"] button.DkEaL')
+            if cat_loc.count() > 0:
+                kategori_gmaps = cat_loc.first.inner_text().strip()
+        except Exception:
+            pass
+
+        # 3. Telepon
+        try:
+            telp_el = page.locator('div[role="main"] button[data-item-id^="phone:tel:"] div.Io6YTe')
             if telp_el.count() > 0:
                 telp = normalize_phone(telp_el.first.inner_text().strip())
         except Exception:
             pass
-        if not telp or telp == "-":
-            telp = ""
 
-        website = ""
+        # 4. Website Resmi — HANYA ambil dari tombol authority di panel aktif
+        # Jangan regex ke seluruh halaman/iframe karena akan mencemari data tempat lain!
         try:
-            web_el = page.locator('a[data-item-id="authority"]')
+            web_el = page.locator('div[role="main"] a[data-item-id="authority"]')
             if web_el.count() > 0:
-                website = web_el.first.get_attribute("href") or ""
+                raw_web = web_el.first.get_attribute("href") or ""
+                if is_valid_website(raw_web):
+                    website = raw_web
         except Exception:
             pass
 
-        # email / NPSN / instagram dari seluruh teks halaman
-        email = ""
-        npsn = ""
-        instagram = ""
-        kemendikdasmen_link = ""
+        # 5. Media Sosial — HANYA ambil dari anchor di dalam div[role="main"] milik tempat ini
         try:
-            detail_text = page.locator('div[role="main"]').inner_text(timeout=5000)
-        except Exception:
-            detail_text = ""
-        m = re.search(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}', detail_text)
-        if m:
-            email = m.group(0)
-        n = re.search(r'(?i)NPSN[\s\:\-]*(\d{8})', detail_text)
-        if not n:
-            n = re.search(r'\b(\d{8})\b', detail_text)
-        if n:
-            npsn = n.group(1)
-
-        # cek content + frames utk link eksternal (website, IG, kemendikdasmen)
-        html = ""
-        try:
-            html += page.content()
+            anchors = page.locator('div[role="main"] a[href]')
+            for i in range(min(anchors.count(), 20)):
+                href = anchors.nth(i).get_attribute("href") or ""
+                h_low = href.lower()
+                if not instagram and "instagram.com" in h_low:
+                    c = clean_social_url(href, "instagram")
+                    if c: instagram = c
+                elif not facebook and ("facebook.com" in h_low or "fb.com" in h_low):
+                    c = clean_social_url(href, "facebook")
+                    if c: facebook = c
+                elif not tiktok and "tiktok.com" in h_low:
+                    c = clean_social_url(href, "tiktok")
+                    if c: tiktok = c
+                elif not twitter_x and ("twitter.com" in h_low or "x.com" in h_low):
+                    c = clean_social_url(href, "twitter_x")
+                    if c: twitter_x = c
+                elif not linkedin and "linkedin.com" in h_low:
+                    c = clean_social_url(href, "linkedin")
+                    if c: linkedin = c
         except Exception:
             pass
-        for frame in page.frames:
+
+        # 6. Email & NPSN jika tertera di teks panel detail
+        try:
+            detail_text = page.locator('div[role="main"]').inner_text(timeout=1000)
+            m = re.search(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}', detail_text)
+            if m:
+                email = m.group(0)
+            n = re.search(r'(?i)NPSN[\s\:\-]*(\d{8})', detail_text)
+            if not n:
+                n = re.search(r'\b(\d{8})\b', detail_text)
+            if n:
+                npsn = n.group(1)
+        except Exception:
+            pass
+
+        # 7. Deteksi direct WhatsApp dari link website jika ada
+        if website and ("wa.me" in website.lower() or "api.whatsapp.com" in website.lower()):
+            m_wa = re.search(r'(?:phone=|wa\.me/)([\d\+]+)', website)
+            if m_wa:
+                wa_clean = normalize_phone(m_wa.group(1))
+                if wa_clean and not telp:
+                    telp = wa_clean
+
+        # 8. Auto-enrichment langsung: ekstrak WhatsApp, medsos, dan email dari website resmi secara otomatis
+        if website:
             try:
-                html += frame.content()
+                enricher = WebsiteContactEnricher(timeout=3.5)
+                w_data = enricher.enrich(website)
+                if not telp and w_data.get("telp"):
+                    telp = w_data["telp"]
+                if not email and w_data.get("email"):
+                    email = w_data["email"]
+                if not instagram and w_data.get("instagram"):
+                    instagram = w_data["instagram"]
+                if not facebook and w_data.get("facebook"):
+                    facebook = w_data["facebook"]
+                if not tiktok and w_data.get("tiktok"):
+                    tiktok = w_data["tiktok"]
+                if not twitter_x and w_data.get("twitter_x"):
+                    twitter_x = w_data["twitter_x"]
+                if not linkedin and w_data.get("linkedin"):
+                    linkedin = w_data["linkedin"]
             except Exception:
                 pass
-        unquoted = urllib.parse.unquote(html)
-        if not website:
-            web_matches = re.findall(r'(https?://[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}[^\s"\'<\\]*)', unquoted)
-            exclusions = ["google", "gstatic", "ggpht", "googleusercontent", "facebook", "youtube", "wikipedia", "kemendikbud",
-                          "kemendikdasmen", "instagram", "twitter", "tiktok", "linkedin", "w3.org",
-                          "playwright", "schema.org", "wa.me", "whatsapp"]
-            for w in web_matches:
-                clean_w = w.split('&')[0].rstrip('.,;)')
-                if is_valid_website(clean_w) and not any(ex in clean_w.lower() for ex in exclusions):
-                    website = clean_w
-                    break
-        instagram = self._find_instagram(page, unquoted)
-        facebook = ""
-        fb_match = re.search(r'https?://(?:www\.)?(?:facebook\.com|fb\.com)/[^\s"\'<>]+', unquoted)
-        if fb_match:
-            facebook = clean_social_url(fb_match.group(0), "facebook")
-
-        linkedin = ""
-        li_match = re.search(r'https?://(?:www\.)?linkedin\.com/(?:company|school)/[^\s"\'<>]+', unquoted)
-        if li_match:
-            linkedin = clean_social_url(li_match.group(0), "linkedin")
-
-        twitter_x = ""
-        tw_match = re.search(r'https?://(?:www\.)?(?:twitter\.com|x\.com)/[^\s"\'<>]+', unquoted)
-        if tw_match:
-            twitter_x = clean_social_url(tw_match.group(0), "twitter_x")
-
-        tiktok = ""
-        tt_match = re.search(r'https?://(?:www\.)?tiktok\.com/@[^\s"\'<>]+', unquoted)
-        if tt_match:
-            tiktok = clean_social_url(tt_match.group(0), "tiktok")
-
-        if not kemendikdasmen_link:
-            kem = re.search(r'(https?://[a-zA-Z0-9.\-]*kemendikdasmen\.go\.id/[^\s"\'<>\\&]+)', unquoted)
-            if kem:
-                kemendikdasmen_link = kem.group(1).rstrip('.,;)')
 
         return {
             "nama_instansi": "",
             "kategori": self.category,
+            "kategori_gmaps": kategori_gmaps,
             "telp": telp,
             "email": email,
             "alamat": alamat if alamat != "-" else "",
@@ -257,42 +334,13 @@ class GmapsScraper(BaseScraper):
             "linkedin": linkedin,
             "twitter_x": twitter_x,
             "tiktok": tiktok,
-            "link_source": kemendikdasmen_link or "",
+            "link_source": "",
             "npsn": npsn,
             "status": "New",
         }
     def _profile_dir(self) -> str:
         """Profil Chrome persisten per pengguna — login berlaku untuk pengguna tersebut."""
         return get_login_profile_dir(self.user_id)
-
-    # ---- Ekstraksi Instagram (akurat, ala file lama tapi diperketat) ----
-    def _clean_ig_url(self, url: str) -> str:
-        """Normalisasi & validasi URL IG → hanya URL profil yang valid."""
-        return clean_social_url(url, "instagram")
-
-    def _find_instagram(self, page, unquoted_html: str) -> str:
-        """Cari IG milik bisnis: prioritas link yang tampil di panel detail,
-        lalu fallback URL di HTML/frames dengan voting frekuensi.
-        (Regex mentah ala script lama sering menangkap IG milik orang lain
-        dari atribusi foto reviewer.)"""
-        # 1) Anchor IG yang benar-benar dirender di panel detail (link resmi bisnis)
-        try:
-            anchors = page.locator('div[role="main"] a[href*="instagram.com"]')
-            for i in range(min(anchors.count(), 10)):
-                cand = self._clean_ig_url(anchors.nth(i).get_attribute("href") or "")
-                if cand:
-                    return cand
-        except Exception:
-            pass
-        # 2) Fallback: kandidat dari HTML/frames, pilih yang paling sering muncul
-        counts: dict[str, int] = {}
-        for raw in re.findall(
-            r'https?://(?:www\.|m\.)?instagram\.com/[A-Za-z0-9_.]+', unquoted_html
-        ):
-            clean = self._clean_ig_url(raw)
-            if clean:
-                counts[clean] = counts.get(clean, 0) + 1
-        return max(counts, key=counts.get) if counts else ""
 
     # ---- Browser login (akun Google utk Maps) ----
     def browser_status(self) -> dict:
@@ -455,12 +503,33 @@ class GmapsScraper(BaseScraper):
                                         }
                                     }""", i)
                             detail = self._extract_detail(page)
+
+                            # Validasi batas wilayah / kota (anti-nyasar)
+                            if not self._is_city_match(detail.get("alamat", "")):
+                                self.emit_progress(len(leads), len(listings), f"Skip (lokasi di luar {self.city}): {name}")
+                                processed.add(name)
+                                continue
+
+                            # Validasi kesesuaian kategori (anti-salah kategori)
+                            if not self._is_category_match(name, detail.get("kategori_gmaps", "")):
+                                self.emit_progress(len(leads), len(listings), f"Skip (kategori tidak sesuai): {name}")
+                                processed.add(name)
+                                continue
+
                             detail["nama_instansi"] = name
                             detail["source"] = self.source
                             leads.append(detail)
                             processed.add(name)
                             target = min(self.max_results, len(listings))
-                            self.emit_progress(len(leads), len(listings), f"Berhasil mengekstrak ({len(leads)}/{target}): {name}")
+                            enrich_tags = []
+                            if detail.get("telp"):
+                                enrich_tags.append("WA/Telp")
+                            if detail.get("email"):
+                                enrich_tags.append("Email")
+                            if detail.get("sosmed"):
+                                enrich_tags.append("Medsos")
+                            enrich_str = f" + auto-enrich ({', '.join(enrich_tags)})" if enrich_tags else ""
+                            self.emit_progress(len(leads), len(listings), f"Berhasil mengekstrak ({len(leads)}/{target}): {name}{enrich_str}")
                             self.rate_limit()
                         except Exception as e:
                             self.emit_progress(len(leads), len(listings), f"Error item: {e}")

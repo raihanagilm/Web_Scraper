@@ -80,7 +80,8 @@
 │           ├── base.py             # BaseScraper: rate_limit 1–3s, cancel, emit_progress
 │           ├── gmaps.py            # GmapsScraper (SEED semua segmen) + CATEGORY_KEYWORDS
 │           ├── dapodik.py          # DapodikScraper (enrichment Sekolah: NPSN, kepsek)
-│           └── google.py           # GoogleScraper (enrichment Kontak Umum: telp/WA, email, website, sosmed)
+│           ├── google.py           # GoogleScraper (enrichment Kontak Umum: telp/WA, email, website, sosmed)
+│           └── website_enricher.py # WebsiteContactEnricher: direct HTTP harvester WA, medsos, email bebas captcha
 ├── routes/                         # LAPIS ROUTER
 │   ├── __init__.py
 │   ├── api.py                      # Aggregator router (/api)
@@ -283,6 +284,7 @@ Alur konseptual PRD v1.1 (lihat [prd.md](prd.md) §6.2); implementasi aktual di 
 | `app/Services/scrapers/gmaps.py` | Seed semua segmen GMaps |
 | `app/Services/scrapers/dapodik.py` | **Enrichment Sekolah**: cari NPSN+kepsek per nama sekolah di referensi.data.kemdikbud.go.id |
 | `app/Services/scrapers/google.py` | **Enrichment Kontak Umum (Google/Web)**: cari no. WA/telp, email, website, sosmed via DuckDuckGo/Web |
+| `app/Services/scrapers/website_enricher.py` | **Website Contact Harvester**: direct HTTP extraction WA, medsos (IG, TikTok, FB, X, LI), email dari website resmi |
 | `app/Services/exporter.py` | `BASE_COLUMNS` + `EXTRA_COLUMNS` per sumber → XLSX/CSV |
 | `app/Services/importer.py` | Parser CSV label Indonesia → field |
 | `routes/api.py` | Aggregator seluruh router endpoint `/api` |
@@ -362,6 +364,7 @@ app/Services/scrapers/base.py
 app/Services/scrapers/dapodik.py
 app/Services/scrapers/gmaps.py
 app/Services/scrapers/google.py
+app/Services/scrapers/website_enricher.py
 app/Services/storage_service.py
 app/__init__.py
 app/config.py

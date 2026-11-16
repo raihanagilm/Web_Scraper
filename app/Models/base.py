@@ -42,3 +42,8 @@ def get_db() -> Session:
 
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
+    try:
+        from database.migrations.add_user_id_to_scrape_jobs import migrate as migrate_user_id
+        migrate_user_id()
+    except Exception:
+        pass

@@ -1483,11 +1483,22 @@ function renderSortIndicators() {
 // ---- Shortcut Cepat Hapus Field di Result Table (Gambar 1 style) ----
 function formatResultPhone(l) {
   if (!l.telp) return "-";
+  const rawClean = String(l.telp).replace(/\D/g, "");
+  const isWA = rawClean.startsWith("628") || rawClean.startsWith("08");
+  const waNum = rawClean.startsWith("08") ? "62" + rawClean.slice(1) : rawClean;
+  const waBtn = isWA
+    ? `<a href="https://wa.me/${waNum}" target="_blank" rel="noopener" class="btn-wa-chat" title="Chat langsung via WhatsApp">
+         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+         <span>WA</span>
+       </a>`
+    : "";
+
   return `
     <div class="result-field-chip chip-telp">
       <span class="chip-icon">${PHONE_SVG}</span>
       <span class="chip-label">TELP:</span>
       <span class="mono chip-val" title="${esc(l.telp)}">${esc(l.telp)}</span>
+      ${waBtn}
       <button type="button" class="btn-result-clear" data-rclear="${l.id}" data-rfield="telp" title="Hapus nomor telepon">${CLOSE_SVG}</button>
     </div>`;
 }
@@ -1511,11 +1522,15 @@ function formatResultEmail(l) {
 
 function formatResultWebsite(l) {
   if (!l.website) return "-";
+  let displayUrl = l.website.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/+$/, "");
+  if (displayUrl.length > 22) {
+    displayUrl = displayUrl.slice(0, 20) + "...";
+  }
   return `
     <div class="result-field-chip chip-web">
       <span class="chip-icon">${GLOBE_SVG}</span>
       <span class="chip-label">WEB:</span>
-      <a href="${esc(l.website)}" target="_blank" rel="noopener" class="cell-url chip-val" title="${esc(l.website)}">${esc(l.website)}</a>
+      <a href="${esc(l.website)}" target="_blank" rel="noopener" class="cell-url chip-val" title="${esc(l.website)}">${esc(displayUrl)}</a>
       <button type="button" class="btn-result-clear" data-rclear="${l.id}" data-rfield="website" title="Hapus link website">${CLOSE_SVG}</button>
     </div>`;
 }
@@ -1580,23 +1595,49 @@ function formatResultSocial(l) {
   return `<div class="result-chip-box">${items.join("")}</div>`;
 }
 
-// Sel <td> dari Nama Instansi s.d. Sumber — dipakai tabel Results
+// Sel <td> dari Nama Instansi s.d. Alamat — dipakai tabel Results (Opsi A: Sel Komposit)
 function leadCells(l) {
+  const kode = esc(l.kode || ('LD-' + l.id));
+  const mapsBtn = l.link_gmaps
+    ? `<a class="btn-link-pill" href="${esc(l.link_gmaps)}" target="_blank" rel="noopener" title="${esc(l.link_gmaps)}" style="margin-left:4px;">Maps ↗</a>`
+    : '';
+  const dapodikBtn = l.link_source
+    ? `<a class="btn-link-pill" href="${esc(l.link_source)}" target="_blank" rel="noopener" title="${esc(l.link_source)}" style="margin-left:4px;">Dapodik ↗</a>`
+    : '';
+  const npsnBadge = l.npsn
+    ? `<span class="badge-mini" title="NPSN: ${esc(l.npsn)}">NPSN ${esc(l.npsn)}</span>`
+    : '';
+  const kepsekText = l.nama_kepsek
+    ? `<div class="sub-lead-info" title="Kepala Sekolah: ${esc(l.nama_kepsek)}">Kepsek: <b>${esc(l.nama_kepsek)}</b></div>`
+    : '';
+
+  // Kumpulkan stack kontak: WA/Telp, Email, Web, Sosmed
+  const contactParts = [];
+  const phone = formatResultPhone(l);
+  if (phone && phone !== "-") contactParts.push(phone);
+  const email = formatResultEmail(l);
+  if (email && email !== "-") contactParts.push(email);
+  const web = formatResultWebsite(l);
+  if (web && web !== "-") contactParts.push(web);
+  const social = formatResultSocial(l);
+  if (social && social !== "-") contactParts.push(social);
+
+  const contactHtml = contactParts.length
+    ? `<div class="contact-stack">${contactParts.join("")}</div>`
+    : `<span class="muted">-</span>`;
+
   return `
-      <td class="mono font-bold" style="color:var(--primary); font-size:11.5px; white-space:nowrap;">${esc(l.kode || ('LD-' + l.id))}</td>
-      <td><b>${esc(l.nama_instansi)}</b></td>
-      <td>${esc(l.kategori || "-")}</td>
-      <td>${formatResultPhone(l)}</td>
-      <td>${formatResultEmail(l)}</td>
-      <td>${esc(l.alamat || "-")}</td>
-      <td>${esc(l.kota || "-")}</td>
-      <td>${linkCell(l.link_gmaps, l.link_gmaps)}</td>
-      <td>${formatResultWebsite(l)}</td>
-      <td>${formatResultSocial(l)}</td>
-      <td class="mono">${esc(l.npsn || "-")}</td>
-      <td>${esc(l.nama_kepsek || "-")}</td>
-      <td>${linkCell(l.link_source, l.link_source)}</td>
-      <td><span class="tag tag-src">${esc(l.source)}</span></td>`;
+      <td class="col-instansi">
+        <div class="lead-nama-text"><b>${esc(l.nama_instansi)}</b></div>
+        <div class="sub-lead-id mono">${kode} ${npsnBadge}</div>
+        ${kepsekText}
+      </td>
+      <td class="col-kategori"><span class="tag tag-src">${esc(l.kategori || "-")}</span></td>
+      <td class="col-kontak">${contactHtml}</td>
+      <td class="col-alamat">
+        <div class="lead-alamat-text">${esc(l.alamat || "-")}${mapsBtn}${dapodikBtn}</div>
+        ${l.kota ? `<div class="sub-lead-kota muted">${esc(l.kota)}</div>` : ''}
+      </td>`;
 }
 
 // Sorting client-side untuk data array (tabel Jobs & Review Duplikat)
@@ -1657,14 +1698,14 @@ async function loadLeads() {
         (l, i) => `
       <tr data-leadid="${l.id}">
         <td class="col-check"><input type="checkbox" class="lead-check" data-id="${l.id}" ${selectedLeads.has(l.id) ? "checked" : ""} aria-label="Pilih lead ${esc(l.nama_instansi)}" /></td>
-        <td class="mono">${offset + i + 1}</td>
+        <td class="mono col-no">${offset + i + 1}</td>
         ${leadCells(l)}
-        <td>
+        <td class="col-status">
           <select data-status="${l.id}" aria-label="Ubah status lead ${esc(l.nama_instansi)}">
             ${STATUS_OPTS.map((s) => `<option ${s === l.status ? "selected" : ""}>${s}</option>`).join("")}
           </select>
         </td>
-        <td>
+        <td class="col-aksi">
           <div class="row-actions">
             <button type="button" class="btn-icon btn-edit" data-edit="${l.id}" aria-label="Edit lead ${esc(l.nama_instansi)}" title="Edit lead">${PENCIL_SVG}</button>
             <button type="button" class="btn-icon" data-del="${l.id}" aria-label="Hapus lead ${esc(l.nama_instansi)}" title="Hapus lead">${TRASH_SVG}</button>
@@ -1672,7 +1713,7 @@ async function loadLeads() {
         </td>
       </tr>`
       )
-      .join("") || `<tr><td colspan="21" class="muted" style="text-align:center;padding:24px">Tidak ada lead</td></tr>`;
+      .join("") || `<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">Tidak ada lead</td></tr>`;
     $("#leads-body").innerHTML = rows;
     renderSortIndicators();
 
@@ -1781,7 +1822,7 @@ function updateBulkBar() {
 function linkCell(url, label) {
   if (!url) return "-";
   const text = label || url;
-  return `<a class="cell-url" href="${esc(url)}" target="_blank" rel="noopener" title="${esc(url)}">${esc(text)}</a>`;
+  return `<a class="btn-link-pill cell-url" href="${esc(url)}" target="_blank" rel="noopener" title="${esc(url)}">${esc(text)}</a>`;
 }
 
 function igLabel(url) {
@@ -2210,25 +2251,18 @@ function bindDedupEvents() {
 
 function dedupTableHead() {
   return `<tr>
-      <th style="width:36px; text-align:center;">No</th>
-      <th class="th-sort col-instansi" data-dsort="nama_instansi">Nama Instansi <span class="sort-arrow" aria-hidden="true"></span></th>
-      <th class="th-sort col-kategori" data-dsort="kategori">Bidang Usaha / Kategori <span class="sort-arrow" aria-hidden="true"></span></th>
-      <th class="th-sort col-alamat" data-dsort="alamat">Alamat Lengkap <span class="sort-arrow" aria-hidden="true"></span></th>
-      <th class="th-sort col-kota" data-dsort="kota">Kota <span class="sort-arrow" aria-hidden="true"></span></th>
-      <th class="th-sort col-gmaps" data-dsort="link_gmaps">Link Gmaps <span class="sort-arrow" aria-hidden="true"></span></th>
-      <th class="th-sort col-dups" data-dsort="dup_fields">Data Terindikasi Duplikat (Kontak & Pemicu) <span class="sort-arrow" aria-hidden="true"></span></th>
+      <th class="col-no" style="width:40px; text-align:center;">No</th>
+      <th class="th-sort col-instansi" data-dsort="nama_instansi">Instansi / Bisnis <span class="sort-arrow" aria-hidden="true"></span></th>
+      <th class="th-sort col-kategori" data-dsort="kategori">Kategori <span class="sort-arrow" aria-hidden="true"></span></th>
+      <th class="th-sort col-alamat" data-dsort="alamat">Alamat &amp; Kota <span class="sort-arrow" aria-hidden="true"></span></th>
+      <th class="th-sort col-dups" data-dsort="dup_fields">Data Terindikasi Duplikat (Kontak &amp; Pemicu) <span class="sort-arrow" aria-hidden="true"></span></th>
       <th class="col-aksi">Aksi</th>
     </tr>`;
 }
 
 function formatGmapsTruncated(url, maxLen = 75) {
   if (!url) return `<span class="muted">-</span>`;
-  const full = String(url);
-  if (full.length <= maxLen) {
-    return `<a href="${esc(full)}" target="_blank" rel="noopener noreferrer" class="link-gmaps-truncated" title="${esc(full)}">[${esc(full)}]</a>`;
-  }
-  const prefix = full.substring(0, maxLen);
-  return `<a href="${esc(full)}" target="_blank" rel="noopener noreferrer" class="link-gmaps-truncated" title="${esc(full)}">[${esc(prefix)}].................</a>`;
+  return `<a class="btn-link-pill" href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="${esc(url)}">Maps ↗</a>`;
 }
 
 function renderDupItemBadge(leadId, fieldName, fieldLabel, val, isTrigger, groupKey = "") {
@@ -2255,7 +2289,22 @@ function renderDupItemBadge(leadId, fieldName, fieldLabel, val, isTrigger, group
 
   let displayVal = esc(val);
   if (["website", "sosmed", "instagram", "tiktok", "facebook", "linkedin", "twitter_x"].includes(fieldName)) {
-    displayVal = `<a href="${esc(val)}" target="_blank" rel="noopener noreferrer">${esc(val)}</a>`;
+    let cleanText = String(val);
+    if (fieldName === "instagram") {
+      cleanText = cleanText.replace(/^https?:\/\/(www\.)?instagram\.com\//i, "@").replace(/\/+$/, "");
+    } else if (fieldName === "tiktok") {
+      cleanText = cleanText.replace(/^https?:\/\/(www\.)?tiktok\.com\//i, "@").replace(/\/+$/, "");
+    } else if (fieldName === "twitter_x") {
+      cleanText = cleanText.replace(/^https?:\/\/(www\.)?(twitter|x)\.com\//i, "@").replace(/\/+$/, "");
+    } else if (fieldName === "facebook") {
+      cleanText = cleanText.replace(/^https?:\/\/(www\.)?facebook\.com\//i, "").replace(/\/+$/, "");
+    } else if (fieldName === "linkedin") {
+      cleanText = cleanText.replace(/^https?:\/\/(www\.)?linkedin\.com\/(in|company)\//i, "").replace(/\/+$/, "");
+    } else {
+      cleanText = cleanText.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/+$/, "");
+      if (cleanText.length > 24) cleanText = cleanText.slice(0, 22) + "...";
+    }
+    displayVal = `<a href="${esc(val)}" target="_blank" rel="noopener noreferrer" title="${esc(val)}">${esc(cleanText)}</a>`;
   }
 
   return `
@@ -2291,19 +2340,25 @@ function renderDedupRows(g) {
         ? `<div class="dup-items-box">${badges.join("")}</div>`
         : `<span class="muted" style="font-size:12px">Nama &amp; Lokasi Mirip</span>`;
 
-      const gmapsLink = `<div class="dup-link-wrap">${formatGmapsTruncated(m.link_gmaps)}</div>`;
+      const mapsBtn = m.link_gmaps
+        ? `<a class="btn-link-pill" href="${esc(m.link_gmaps)}" target="_blank" rel="noopener noreferrer" title="${esc(m.link_gmaps)}" style="margin-left:4px;">Maps ↗</a>`
+        : '';
+      const dapodikBtn = m.link_source
+        ? `<a class="btn-link-pill" href="${esc(m.link_source)}" target="_blank" rel="noopener noreferrer" title="${esc(m.link_source)}" style="margin-left:4px;">Dapodik ↗</a>`
+        : '';
 
       return `
     <tr>
-      <td class="mono" style="text-align:center;">${i + 1}</td>
+      <td class="mono col-no" style="text-align:center;">${i + 1}</td>
       <td class="col-instansi">
-        <div style="font-weight:600; line-height:1.3;">${esc(m.nama_instansi)}</div>
-        <div class="muted" style="font-size:11px; margin-top:2px;">Kode: <span class="mono font-bold" style="color:var(--primary)">${esc(m.kode || ('LD-' + m.id))}</span></div>
+        <div class="lead-nama-text"><b>${esc(m.nama_instansi)}</b></div>
+        <div class="sub-lead-id mono">${esc(m.kode || ('LD-' + m.id))}</div>
       </td>
       <td class="col-kategori"><span class="tag tag-src">${esc(m.kategori || "-")}</span></td>
-      <td class="col-alamat" title="${esc(m.alamat || "-")}">${esc(m.alamat || "-")}</td>
-      <td class="col-kota">${esc(m.kota || "-")}</td>
-      <td class="col-gmaps">${gmapsLink}</td>
+      <td class="col-alamat">
+        <div class="lead-alamat-text">${esc(m.alamat || "-")}${mapsBtn}${dapodikBtn}</div>
+        ${m.kota ? `<div class="sub-lead-kota muted">${esc(m.kota)}</div>` : ''}
+      </td>
       <td class="col-dups">${dupContent}</td>
       <td class="col-aksi">
         <div class="row-actions" style="justify-content:center; gap:4px;">

@@ -20,6 +20,7 @@ from playwright.sync_api import sync_playwright
 from app.Services.scrapers.base import BaseScraper
 from app.Services.cleaner import normalize_phone, clean_social_url, is_valid_website
 from app.Services.browser_profile import launch_login_browser_context
+from app.Services.scrapers.website_enricher import WebsiteContactEnricher
 
 # Domain yang dikecualikan dari deteksi website resmi instansi
 EXCLUDED_DOMAINS = {
@@ -109,7 +110,58 @@ class GoogleScraper(BaseScraper):
             self.emit_progress(0, 0, "Tidak ada lead dengan kontak kosong — enrichment dilewati.")
             return leads
 
-        self.emit_progress(0, len(self.targets), f"Membuka browser pencarian kontak untuk {len(self.targets)} instansi…")
+        # 1. Kumpulkan website yang sudah tersimpan di database
+        website_map: dict[str, str] = {}
+        try:
+            from app.Models import SessionLocal, Lead
+            tdb = SessionLocal()
+            try:
+                db_leads = tdb.query(Lead).filter(Lead.nama_instansi.in_(self.targets)).all()
+                for dl in db_leads:
+                    if dl.website:
+                        website_map[dl.nama_instansi] = dl.website
+            finally:
+                tdb.close()
+        except Exception:
+            pass
+
+        enricher = WebsiteContactEnricher(timeout=6.0)
+        remaining_targets: list[str] = []
+
+        # 2. Fast Deep-Crawl untuk target yang memiliki website (Bebas Captcha Google)
+        for i, target in enumerate(self.targets):
+            if self.is_cancelled():
+                return leads
+
+            w_url = website_map.get(target, "")
+            if w_url:
+                self.emit_progress(i, len(self.targets), f"Crawling website resmi: {target} ({w_url})")
+                w_data = enricher.enrich(w_url)
+                if any(w_data.get(k) for k in ["telp", "email", "instagram", "facebook", "tiktok", "twitter_x", "linkedin"]):
+                    leads.append({
+                        "nama_instansi": target,
+                        "kategori": self.category,
+                        "kota": self.city,
+                        "telp": w_data.get("telp", ""),
+                        "email": w_data.get("email", ""),
+                        "website": w_url,
+                        "sosmed": w_data.get("sosmed", ""),
+                        "instagram": w_data.get("instagram", ""),
+                        "facebook": w_data.get("facebook", ""),
+                        "linkedin": w_data.get("linkedin", ""),
+                        "twitter_x": w_data.get("twitter_x", ""),
+                        "tiktok": w_data.get("tiktok", ""),
+                    })
+                    self.emit_progress(i + 1, len(self.targets), f"Kontak & medsos sukses dari website: {target}")
+                    continue
+
+            # Jika tidak ada website atau website tidak memuat kontak, simpan untuk fallback
+            remaining_targets.append(target)
+
+        if not remaining_targets or self.is_cancelled():
+            return leads
+
+        self.emit_progress(len(leads), len(self.targets), f"Membuka browser pencarian fallback untuk {len(remaining_targets)} target…")
 
         worker_dir = None
         try:
@@ -124,11 +176,12 @@ class GoogleScraper(BaseScraper):
                 page = context.pages[0] if context.pages else context.new_page()
                 self._page = page
 
-                for i, target in enumerate(self.targets):
+                for idx, target in enumerate(remaining_targets):
                     if self.is_cancelled():
                         break
 
-                    self.emit_progress(i, len(self.targets), f"Mencari web: {target} ({self.city})")
+                    current_idx = len(leads)
+                    self.emit_progress(current_idx, len(self.targets), f"Mencari web: {target} ({self.city})")
 
                     query = f"{target} {self.city} kontak telepon email instagram website"
                     telp = ""
