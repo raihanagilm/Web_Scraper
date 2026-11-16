@@ -1,0 +1,99 @@
+<section id="page-scrape" class="page hidden">
+  <div class="page-head">
+    <div>
+      <h2>Scrape Data</h2>
+      <p class="muted page-sub">Pencarian dan penarikan database leads bisnis & instansi baru via Google Maps</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <h3 style="margin:0;">Pencarian Leads Google Maps</h3>
+      <span class="enrich-badge google"
+        style="margin:0; font-size:11px; background:#ecfdf5; color:#047857; border:1px solid #a7f3d0;">⚡
+        Auto-Enrichment Aktif</span>
+    </div>
+    <p class="muted">Masukkan jenis bisnis dan kota. Sistem otomatis mengekstrak alamat, website, direct WhatsApp,
+      serta akun media sosial (IG, TikTok, FB, Twitter/X, Email) secara instan tanpa perlu klik enrichment
+      terpisah.</p>
+    <form id="scrape-form" class="form-row">
+      <div>
+        <label for="scrape-keyword">Kata Kunci Pencarian</label>
+        <input id="scrape-keyword" type="text" value="sekolah" placeholder="mis. sekolah, restoran, perusahaan"
+          required />
+      </div>
+      <div><label for="scrape-city">Kota</label><input id="scrape-city" type="text" value="salatiga"
+          placeholder="mis. salatiga, semarang, jakarta" required /></div>
+      <div><label for="scrape-max">Maks. hasil</label><input id="scrape-max" type="number" value="50" min="1"
+          max="50" placeholder="mis. 50" required /></div>
+      <button type="button" id="btn-start-scrape" class="btn btn-primary"
+        style="display:inline-flex; align-items:center; gap:6px;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-4.35-4.35" />
+        </svg>
+        <span>Mulai Scrape</span>
+      </button>
+    </form>
+    <div class="browser-row">
+      <button type="button" id="btn-browser-login" class="btn btn-ghost btn-sm"
+        style="display:inline-flex; align-items:center; gap:6px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+          <polyline points="15 3 21 3 21 9" />
+          <line x1="10" y1="14" x2="21" y2="3" />
+        </svg>
+        <span>Buka Browser Login</span>
+      </button>
+      <!-- Monitor browser (noVNC): menampilkan jendela Chromium di server/VPS (file.md §2.7) -->
+      <a id="btn-browser-monitor" class="btn btn-ghost btn-sm hidden" href="#" target="_blank" rel="noopener"
+        style="align-items:center; gap:6px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+        <span>Lihat Browser (Monitor)</span>
+      </a>
+      <span id="browser-login-status" class="form-msg muted">Profil browser: memeriksa...</span>
+    </div>
+    <p id="scrape-msg" class="form-msg hidden"></p>
+  </div>
+
+  <!-- Riwayat Kategori (dari kata kunci yang pernah dipakai, unik) -->
+  <div class="card mt">
+    <h3>Riwayat Kategori Cepat</h3>
+    <p class="muted" style="font-size:12px; margin-bottom:8px;">Klik kategori di bawah untuk langsung mengisi
+      kolom kata kunci pencarian:</p>
+    <div id="keyword-history" class="tag-cloud"></div>
+  </div>
+
+  <!-- Riwayat Job Scrape -->
+  <h3 class="mt">Riwayat Job Scrape</h3>
+  <div class="card table-card">
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th class="th-sort" data-jsort="started_at">Waktu <span class="sort-arrow" aria-hidden="true"></span>
+            </th>
+            <th class="th-sort" data-jsort="id">ID Job <span class="sort-arrow" aria-hidden="true"></span></th>
+            <th class="th-sort" data-jsort="category">Kategori <span class="sort-arrow" aria-hidden="true"></span>
+            </th>
+            <th class="th-sort" data-jsort="city">Kota <span class="sort-arrow" aria-hidden="true"></span></th>
+            <th class="th-sort" data-jsort="status">Status <span class="sort-arrow" aria-hidden="true"></span>
+            </th>
+            <th class="th-sort" data-jsort="progress">Progres <span class="sort-arrow" aria-hidden="true"></span>
+            </th>
+            <th class="th-sort" data-jsort="total_found">Ditemukan <span class="sort-arrow"
+                aria-hidden="true"></span></th>
+            <th><span class="sr-only">Aksi</span></th>
+          </tr>
+        </thead>
+        <tbody id="jobs-body"></tbody>
+      </table>
+    </div>
+  </div>
+</section>

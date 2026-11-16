@@ -1,0 +1,169 @@
+<!-- ===== MODAL EDIT LEAD ===== -->
+<div id="modal-overlay" class="modal-overlay hidden">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-head">
+      <h3 id="modal-title">Edit Lead</h3>
+      <button id="modal-close" class="btn-icon modal-x" aria-label="Tutup" title="Tutup">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+    </div>
+    <form id="edit-form" class="modal-body">
+      <input type="hidden" id="edit-id" />
+      <div class="form-grid">
+        <label>Kode ID<input id="edit-kode" type="text" readonly
+            style="background:#f1f5f9;font-family:monospace;font-weight:600;" /></label>
+        <label>Nama Instansi<input id="edit-nama_instansi" type="text" required /></label>
+        <label>Kategori<input id="edit-kategori" type="text" list="kategori-list"
+            placeholder="mis. sekolah" /><datalist id="kategori-list"></datalist></label>
+        <label>No. WA / Telepon<input id="edit-telp" type="text" /></label>
+        <label>Alamat Email (bisa &gt;1, pisahkan koma)<input id="edit-email" type="text"
+            placeholder="email1@domain.com, email2@domain.com" /></label>
+        <label class="span-2">Alamat Lengkap<textarea id="edit-alamat" rows="2"></textarea></label>
+        <label>Kota<input id="edit-kota" type="text" list="kota-list" placeholder="mis. salatiga" /><datalist
+            id="kota-list"></datalist></label>
+        <label>Link Gmaps<input id="edit-link_gmaps" type="url" /></label>
+        <label>Link Website<input id="edit-website" type="url" /></label>
+        <label>Instagram<input id="edit-instagram" type="text"
+            placeholder="https://instagram.com/... atau @username" /></label>
+        <label>Facebook<input id="edit-facebook" type="text" placeholder="https://facebook.com/..." /></label>
+        <label>LinkedIn<input id="edit-linkedin" type="text" placeholder="https://linkedin.com/in/..." /></label>
+        <label>Twitter / X<input id="edit-twitter_x" type="text" placeholder="https://x.com/..." /></label>
+        <label>TikTok<input id="edit-tiktok" type="text"
+            placeholder="https://tiktok.com/@... atau @username" /></label>
+        <label>Media Sosial Lainnya<input id="edit-sosmed" type="text" /></label>
+        <label>NPSN<input id="edit-npsn" type="text" /></label>
+        <label>Nama Kepsek<input id="edit-nama_kepsek" type="text" /></label>
+        <label>Status
+          <select id="edit-status">
+            <option>New</option>
+            <option>Contacted</option>
+            <option>Follow Up</option>
+            <option>Deal</option>
+            <option>Rejected</option>
+          </select>
+        </label>
+      </div>
+      <p id="edit-error" class="login-error hidden"></p>
+      <div class="modal-foot">
+        <button type="button" id="edit-cancel" class="btn btn-ghost">Batal</button>
+        <button type="submit" class="btn btn-primary">Simpan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===== MODAL KONFIRMASI ===== -->
+<div id="confirm-overlay" class="modal-overlay hidden">
+  <div class="modal modal-sm" role="alertdialog" aria-modal="true" aria-labelledby="confirm-msg">
+    <div class="modal-body">
+      <p id="confirm-msg" class="confirm-msg"></p>
+      <div class="modal-foot">
+        <button id="confirm-cancel" class="btn btn-ghost">Batal</button>
+        <button id="confirm-ok" class="btn btn-danger">Ya, lanjutkan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL PILIHAN ENRICHMENT ===== -->
+<div id="modal-enrich-overlay" class="modal-overlay hidden">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="enrich-modal-title" style="max-width: 540px;">
+    <div class="modal-head">
+      <h3 id="enrich-modal-title" style="display:flex; align-items:center; gap:8px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+        </svg>
+        <span>Pilih Sumber Enrichment Data</span>
+      </h3>
+      <button id="modal-enrich-close" class="btn-icon modal-x" aria-label="Tutup" title="Tutup">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div id="enrich-target-info" class="enrich-target-badge">
+        <span style="display:inline-flex; align-items:center; gap:6px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" />
+            <circle cx="12" cy="12" r="6" />
+            <circle cx="12" cy="12" r="2" />
+          </svg>
+          <span>Target: <strong id="enrich-modal-target-text">-</strong></span>
+        </span>
+      </div>
+      <p class="muted" style="font-size:12.5px; margin-bottom:8px;">
+        Pilih sumber data yang paling relevan untuk melengkapi kontak & profil yang masih kosong pada entitas ini:
+      </p>
+
+      <div class="enrich-source-list">
+        <!-- Opsi Google -->
+        <label class="enrich-source-card" data-source="google">
+          <input type="radio" name="modal_enrich_source" value="google" checked />
+          <div class="enrich-card-content">
+            <div class="enrich-card-title">
+              <span style="display:flex; align-items:center; gap:6px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="2" y1="12" x2="22" y2="12" />
+                  <path
+                    d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                </svg>
+                <span>Pencarian Google / Web</span>
+              </span>
+              <span class="enrich-badge-rec" id="badge-rec-google">Rekomendasi Umum</span>
+            </div>
+            <div class="enrich-card-fields">Field: <strong>No. WA/Telepon, Alamat Email, Link Website,
+                Instagram</strong></div>
+            <div class="enrich-card-targets">Cocok untuk: Rumah Sakit, Klinik, Hotel, Toko, Kafe/Restoran, UMKM, dll.
+            </div>
+          </div>
+        </label>
+
+        <!-- Opsi Dapodik -->
+        <label class="enrich-source-card" data-source="dapodik">
+          <input type="radio" name="modal_enrich_source" value="dapodik" />
+          <div class="enrich-card-content">
+            <div class="enrich-card-title">
+              <span style="display:flex; align-items:center; gap:6px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+                  <path d="M6 12v5c3 3 9 3 12 0v-5" />
+                </svg>
+                <span>Dapodik Kemendikbud</span>
+              </span>
+              <span class="enrich-badge-rec hidden" id="badge-rec-dapodik">Rekomendasi Sekolah</span>
+            </div>
+            <div class="enrich-card-fields">Field: <strong>NPSN, Nama Kepala Sekolah, Email Resmi Sekolah</strong>
+            </div>
+            <div class="enrich-card-targets">Cocok untuk: SD, SMP, SMA, SMK, Madrasah, Sekolah Internasional</div>
+          </div>
+        </label>
+      </div>
+
+      <p id="modal-enrich-error" class="login-error hidden" style="text-align:left;"></p>
+
+      <div class="modal-foot">
+        <button type="button" id="modal-enrich-cancel" class="btn btn-ghost">Batal</button>
+        <button type="button" id="modal-enrich-submit" class="btn btn-primary"
+          style="display:inline-flex; align-items:center; gap:6px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+          </svg>
+          <span>Mulai Enrichment</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

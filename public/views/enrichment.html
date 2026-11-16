@@ -1,0 +1,75 @@
+<section id="page-enrichment" class="page hidden">
+  <div class="page-head">
+    <div>
+      <h2>Enrichment Leads</h2>
+      <p class="muted page-sub">Lengkapi kontak & profil leads yang masih kosong dari sumber data pendukung</p>
+    </div>
+  </div>
+
+  <!-- Panduan Enrichment -->
+  <div class="card mt" style="background:#f4f9f5; border-color:#c9e0d1;">
+    <div style="display:flex; align-items:flex-start; gap:12px;">
+      <div style="color:var(--primary); flex-shrink:0; padding-top:2px;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M9 18h6" />
+          <path d="M10 22h4" />
+          <path
+            d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5.76.76 1.23 1.52 1.41 2.5z" />
+        </svg>
+      </div>
+      <div>
+        <h3 style="margin-bottom:4px; color:var(--primary-hover);">Cara Melakukan Enrichment Data</h3>
+        <p class="muted" style="margin:0; line-height:1.5;">
+          Enrichment dilakukan langsung dari data hasil scraping. Buka menu <strong>Scrape Data</strong>, lalu
+          klik tombol <strong>Enrich</strong> pada baris riwayat job yang ingin Anda lengkapi datanya. Anda dapat
+          memilih sumber data pendukung (Pencarian Google / Web atau Dapodik Kemendikbud) sesuai kebutuhan
+          entitas.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mt">
+    <h3>Field yang Diisi per Sumber Enrichment</h3>
+    <div class="table-scroll">
+      <table class="info-table">
+        <thead>
+          <tr>
+            <th>Sumber</th>
+            <th>Status</th>
+            <th>Field yang Diisi</th>
+          </tr>
+        </thead>
+        <tbody id="enrich-fields-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <h3 class="mt">Riwayat Job Enrichment</h3>
+  <div class="card table-card">
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th class="th-sort" data-esort="started_at">Waktu <span class="sort-arrow" aria-hidden="true"></span>
+            </th>
+            <th class="th-sort" data-esort="source">Sumber <span class="sort-arrow" aria-hidden="true"></span>
+            </th>
+            <th class="th-sort" data-esort="category">Kategori <span class="sort-arrow" aria-hidden="true"></span>
+            </th>
+            <th class="th-sort" data-esort="city">Kota <span class="sort-arrow" aria-hidden="true"></span></th>
+            <th class="th-sort" data-esort="status">Status <span class="sort-arrow" aria-hidden="true"></span>
+            </th>
+            <th class="th-sort" data-esort="progress">Progres <span class="sort-arrow" aria-hidden="true"></span>
+            </th>
+            <th class="th-sort" data-esort="total_found">Ditemukan <span class="sort-arrow"
+                aria-hidden="true"></span></th>
+            <th><span class="sr-only">Aksi</span></th>
+          </tr>
+        </thead>
+        <tbody id="enrich-jobs-body"></tbody>
+      </table>
+    </div>
+  </div>
+</section>

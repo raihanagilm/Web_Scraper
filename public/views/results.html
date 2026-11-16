@@ -1,0 +1,136 @@
+<section id="page-results" class="page hidden">
+  <div class="page-head">
+    <div>
+      <h2>Hasil Leads</h2>
+      <p class="muted page-sub">Kelola, saring, edit cepat, dan ekspor seluruh database kontak leads</p>
+    </div>
+    <div class="actions">
+      <input id="import-file" type="file" accept=".csv" aria-label="Pilih file CSV untuk diimpor"
+        title="Pilih file CSV untuk diimpor" class="hidden" />
+      <button id="btn-import" class="btn btn-ghost" style="display:inline-flex; align-items:center; gap:6px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="17 8 12 3 7 8" />
+          <line x1="12" y1="3" x2="12" y2="15" />
+        </svg>
+        <span>Import CSV</span>
+      </button>
+      <button id="btn-export-csv" class="btn btn-ghost" style="display:inline-flex; align-items:center; gap:6px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        <span>Export CSV</span>
+      </button>
+      <button id="btn-export" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:6px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="8" y1="13" x2="16" y2="13" />
+          <line x1="8" y1="17" x2="16" y2="17" />
+        </svg>
+        <span>Export Excel</span>
+      </button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="filters">
+      <input id="f-search" type="text" placeholder="Cari nama, alamat, email, kategori..."
+        aria-label="Pencarian lead" />
+      <select id="f-category" aria-label="Filter kategori">
+        <option value="">Semua kategori</option>
+      </select>
+      <select id="f-kota" aria-label="Filter kota">
+        <option value="">Semua kota</option>
+      </select>
+      <select id="f-status" aria-label="Filter status">
+        <option value="">Semua status</option>
+        <option>New</option>
+        <option>Contacted</option>
+        <option>Follow Up</option>
+        <option>Deal</option>
+        <option>Rejected</option>
+      </select>
+      <button id="btn-filter" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:6px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+        </svg>
+        <span>Terapkan</span>
+      </button>
+      <button id="btn-reset-filter" class="btn btn-ghost" title="Reset semua filter & sorting"
+        style="display:inline-flex; align-items:center; gap:6px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+          <path d="M3 3v5h5" />
+          <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+          <path d="M16 21h5v-5" />
+        </svg>
+        <span>Reset</span>
+      </button>
+    </div>
+  </div>
+  <div id="bulk-bar" class="bulk-bar hidden">
+    <span id="bulk-count">0 lead dipilih</span>
+    <button id="btn-bulk-delete" class="btn btn-danger btn-sm"
+      style="display:inline-flex; align-items:center; gap:5px;">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 6h18" />
+        <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+        <path d="m19 6-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      </svg>
+      <span>Hapus Terpilih</span>
+    </button>
+    <button id="btn-clear-selection" class="btn btn-ghost btn-sm" title="Batal pilih semua"
+      style="display:inline-flex; align-items:center; gap:5px;">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="18" y1="6" x2="6" y2="18" />
+        <line x1="6" y1="6" x2="18" y2="18" />
+      </svg>
+      <span>Batal</span>
+    </button>
+  </div>
+  <div class="card table-card">
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th class="col-check"><input type="checkbox" id="sel-all" aria-label="Pilih semua lead di halaman ini" /></th>
+            <th class="col-no">No</th>
+            <th class="th-sort col-instansi" data-sort="nama_instansi">Instansi / Bisnis <span class="sort-arrow" aria-hidden="true"></span></th>
+            <th class="th-sort col-kategori" data-sort="kategori">Kategori <span class="sort-arrow" aria-hidden="true"></span></th>
+            <th class="col-kontak">Kontak &amp; Medsos</th>
+            <th class="th-sort col-alamat" data-sort="alamat">Alamat &amp; Kota <span class="sort-arrow" aria-hidden="true"></span></th>
+            <th class="th-sort col-status" data-sort="status">Status <span class="sort-arrow" aria-hidden="true"></span></th>
+            <th class="col-aksi"><span class="sr-only">Aksi</span></th>
+          </tr>
+        </thead>
+        <tbody id="leads-body"></tbody>
+      </table>
+    </div>
+    <div class="pager">
+      <button id="pg-prev" class="btn btn-ghost btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+        <span>Sebelumnya</span>
+      </button>
+      <span id="pg-info" class="pg-info"></span>
+      <button id="pg-next" class="btn btn-ghost btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
+        <span>Berikutnya</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+      </button>
+    </div>
+  </div>
+</section>

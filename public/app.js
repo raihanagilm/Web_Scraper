@@ -245,7 +245,74 @@ function showApp() {
   $("#app-view").classList.remove("hidden");
 }
 
+let viewsLoaded = false;
+async function loadAllViews() {
+  if (viewsLoaded) return;
+  const views = [
+    { name: "dashboard", url: "views/dashboard.html" },
+    { name: "scrape", url: "views/scrape.html" },
+    { name: "enrichment", url: "views/enrichment.html" },
+    { name: "results", url: "views/results.html" },
+    { name: "dedup", url: "views/dedup.html" },
+    { name: "users", url: "views/users.html" },
+    { name: "modals", url: "views/modals.html" },
+  ];
+
+  try {
+    const results = await Promise.all(
+      views.map(async (v) => {
+        const res = await fetch(`${v.url}?v=22`);
+        if (!res.ok) throw new Error(`Gagal memuat modul ${v.name}`);
+        const html = await res.text();
+        return { ...v, html };
+      })
+    );
+
+    const appMain = document.getElementById("app-main");
+    const modalsRoot = document.getElementById("modals-root");
+    if (appMain) appMain.innerHTML = "";
+
+    results.forEach(({ name, html }) => {
+      if (name === "modals") {
+        if (modalsRoot) modalsRoot.innerHTML = html;
+      } else {
+        if (appMain) appMain.insertAdjacentHTML("beforeend", html);
+      }
+    });
+
+    viewsLoaded = true;
+  } catch (err) {
+    const appMain = document.getElementById("app-main");
+    if (appMain) {
+      appMain.innerHTML = `
+        <div class="card text-center" style="padding: 40px; margin: 20px auto; max-width: 480px;">
+          <h3 style="color: var(--danger); margin-bottom: 8px;">Gagal Memuat Modul</h3>
+          <p class="muted" style="margin-bottom: 16px;">${esc(err.message || "Terjadi kesalahan saat memuat tampilan antarmuka.")}</p>
+          <button type="button" class="btn btn-primary" onclick="location.reload()">Muat Ulang Halaman</button>
+        </div>`;
+    }
+    throw err;
+  }
+}
+
+function initPageEventListeners() {
+  setupScrapeEvents();
+  setupEnrichmentEvents();
+  setupModalEvents();
+  setupResultsEvents();
+  setupDedupEvents();
+  setupUserEvents();
+}
+
 async function bootstrap() {
+  try {
+    await loadAllViews();
+    initPageEventListeners();
+  } catch (err) {
+    console.error("Gagal memuat tampilan aplikasi:", err);
+    return;
+  }
+
   try {
     const me = await api("/api/auth/me");
     const uname = me.username || "user";
@@ -469,58 +536,132 @@ function renderJobSortIndicators() {
   });
 }
 
-// ---- Scraping (GMaps) ----
-$("#btn-start-scrape").addEventListener("click", async () => {
-  const btn = $("#btn-start-scrape");
-  unlockAudio();
-  const msg = $("#scrape-msg");
-  msg.classList.add("hidden");
-  const keyword = $("#scrape-keyword").value.trim();
-  const city = $("#scrape-city").value.trim();
-  if (!keyword) {
-    msg.textContent = "Masukkan kata kunci pencarian.";
-    msg.style.color = "var(--danger)";
-    msg.classList.remove("hidden");
-    $("#scrape-keyword").focus();
-    return;
-  }
-  setButtonLoading(btn, true, "Memulai Scrape...");
-  try {
-    const job = await api("/api/scrape", {
-      method: "POST",
-      body: {
-        source: "gmaps",
-        category: keyword,
-        city: city,
-        max_results: parseInt($("#scrape-max").value, 10) || 50,
-      },
-    });
-    addKeywordHistory(keyword); // catat ke Riwayat Kategori (unique)
-    msg.textContent = `Scrape GMaps dimulai (${job.id}) — pantau progres di bawah.`;
-    msg.classList.remove("hidden");
-    startPolling();
-    loadJobs();
-  } catch (ex) {
-    msg.textContent = ex.message;
-    msg.style.color = "var(--danger)";
-    msg.classList.remove("hidden");
-  } finally {
-    setButtonLoading(btn, false);
-  }
-});
-
-// Keyboard: Enter pada input form Scrape langsung memulai scrape
-["scrape-keyword", "scrape-city", "scrape-max"].forEach((id) => {
-  const el = $(`#${id}`);
-  if (el) {
-    el.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        $("#btn-start-scrape").click();
+// ---- Scraping (GMaps) Setup Events ----
+function setupScrapeEvents() {
+  const btnStartScrape = $("#btn-start-scrape");
+  if (btnStartScrape) {
+    btnStartScrape.addEventListener("click", async () => {
+      const btn = btnStartScrape;
+      unlockAudio();
+      const msg = $("#scrape-msg");
+      if (msg) msg.classList.add("hidden");
+      const keyword = $("#scrape-keyword")?.value.trim() || "";
+      const city = $("#scrape-city")?.value.trim() || "";
+      if (!keyword) {
+        if (msg) {
+          msg.textContent = "Masukkan kata kunci pencarian.";
+          msg.style.color = "var(--danger)";
+          msg.classList.remove("hidden");
+        }
+        $("#scrape-keyword")?.focus();
+        return;
+      }
+      setButtonLoading(btn, true, "Memulai Scrape...");
+      try {
+        const job = await api("/api/scrape", {
+          method: "POST",
+          body: {
+            source: "gmaps",
+            category: keyword,
+            city: city,
+            max_results: parseInt($("#scrape-max")?.value, 10) || 50,
+          },
+        });
+        addKeywordHistory(keyword);
+        if (msg) {
+          msg.textContent = `Scrape GMaps dimulai (${job.id}) — pantau progres di bawah.`;
+          msg.classList.remove("hidden");
+        }
+        startPolling();
+        loadJobs();
+      } catch (ex) {
+        if (msg) {
+          msg.textContent = ex.message;
+          msg.style.color = "var(--danger)";
+          msg.classList.remove("hidden");
+        }
+      } finally {
+        setButtonLoading(btn, false);
       }
     });
   }
-});
+
+  ["scrape-keyword", "scrape-city", "scrape-max"].forEach((id) => {
+    const el = $(`#${id}`);
+    if (el) {
+      el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          $("#btn-start-scrape")?.click();
+        }
+      });
+    }
+  });
+
+  // Table header sort
+  document.querySelectorAll("#page-scrape th[data-jsort]").forEach((th) => {
+    th.setAttribute("tabindex", "0");
+    th.setAttribute("role", "button");
+    const doJobSort = () => {
+      const key = th.dataset.jsort;
+      if (jobSort.key === key) {
+        jobSort.dir = jobSort.dir === "asc" ? "desc" : "asc";
+      } else {
+        jobSort.key = key;
+        jobSort.dir = "desc";
+      }
+      renderJobSortIndicators();
+      loadJobs();
+    };
+    th.addEventListener("click", doJobSort);
+    th.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        doJobSort();
+      }
+    });
+  });
+
+  $("#btn-browser-login")?.addEventListener("click", async () => {
+    const btn = $("#btn-browser-login");
+    const el = $("#browser-login-status");
+    setButtonLoading(btn, true, "Membuka Chrome...");
+    try {
+      const res = await api("/api/browser-login", { method: "POST" });
+      if (res && res.headless) {
+        if (el) {
+          el.innerHTML = `${ICONS.alertTriangle}<span>${res.msg || "Login manual tidak tersedia di mode headless."}</span>`;
+          el.style.color = "var(--warning, #d97706)";
+          el.style.display = "inline-flex";
+          el.style.alignItems = "center";
+          el.style.gap = "6px";
+        }
+        return;
+      }
+      if (el) {
+        el.innerHTML = `${ICONS.info}<span>${novncState.available
+          ? "Chrome terbuka di server — buka tab Monitor Browser, login ke akun Google, lalu tutup jendelanya."
+          : "Chrome terbuka — login ke akun Google, lalu tutup jendelanya."}</span>`;
+        el.style.color = "var(--muted)";
+        el.style.display = "inline-flex";
+        el.style.alignItems = "center";
+        el.style.gap = "6px";
+      }
+      stopBrowserPolling();
+      browserPollTimer = setInterval(() => {
+        if ($("#page-scrape").classList.contains("hidden")) { stopBrowserPolling(); return; }
+        loadBrowserStatus();
+      }, 5000);
+    } catch (ex) {
+      if (el) {
+        el.textContent = "Gagal membuka browser: " + ex.message;
+        el.style.color = "var(--danger)";
+      }
+    } finally {
+      setButtonLoading(btn, false);
+    }
+  });
+}
 
 // ---- Riwayat Kategori (Quick Fill) ----
 // Setiap scrape dijalankan → kata kunci disimpan (unique, case-insensitive,
@@ -725,7 +866,7 @@ async function submitEnrichModal() {
 }
 
 // Inisialisasi event listener interaktif modal pilihan enrichment
-document.addEventListener("DOMContentLoaded", () => {
+function setupEnrichmentEvents() {
   document.querySelectorAll(".enrich-source-card").forEach((card) => {
     card.setAttribute("tabindex", "0");
     card.setAttribute("role", "radio");
@@ -747,7 +888,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#modal-enrich-overlay")?.addEventListener("click", (e) => {
     if (e.target.id === "modal-enrich-overlay") closeEnrichModal();
   });
-});
+}
 
 // ---- Load Enrichment Jobs ----
 let lastEnrichJobs = [];
@@ -1273,29 +1414,7 @@ async function deleteJob(jobId, reload = loadJobs, triggerBtn = null) {
   }
 }
 
-// Klik header tabel Riwayat Job → toggle sorting asc/desc + keyboard Enter/Space
-document.querySelectorAll("#page-scrape th[data-jsort]").forEach((th) => {
-  th.setAttribute("tabindex", "0");
-  th.setAttribute("role", "button");
-  const doJobSort = () => {
-    const key = th.dataset.jsort;
-    if (jobSort.key === key) {
-      jobSort.dir = jobSort.dir === "asc" ? "desc" : "asc";
-    } else {
-      jobSort.key = key;
-      jobSort.dir = "desc";
-    }
-    renderJobSortIndicators();
-    loadJobs();
-  };
-  th.addEventListener("click", doJobSort);
-  th.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      doJobSort();
-    }
-  });
-});
+// (Sorting header tabel Riwayat Job diinisialisasi dalam setupScrapeEvents)
 
 // ---- Browser login (Google) ----
 let browserPollTimer = null;
@@ -1375,40 +1494,7 @@ async function loadBrowserStatus() {
   }
 }
 
-$("#btn-browser-login").addEventListener("click", async () => {
-  const btn = $("#btn-browser-login");
-  const el = $("#browser-login-status");
-  setButtonLoading(btn, true, "Membuka Chrome...");
-  try {
-    const res = await api("/api/browser-login", { method: "POST" });
-    // Mode headless (Docker): server menolak membuka browser login manual — tampilkan info saja.
-    if (res && res.headless) {
-      el.innerHTML = `${ICONS.alertTriangle}<span>${res.msg || "Login manual tidak tersedia di mode headless."}</span>`;
-      el.style.color = "var(--warning, #d97706)";
-      el.style.display = "inline-flex";
-      el.style.alignItems = "center";
-      el.style.gap = "6px";
-      return;
-    }
-    el.innerHTML = `${ICONS.info}<span>${novncState.available
-      ? "Chrome terbuka di server — buka tab Monitor Browser, login ke akun Google, lalu tutup jendelanya."
-      : "Chrome terbuka — login ke akun Google, lalu tutup jendelanya."}</span>`;
-    el.style.color = "var(--muted)";
-    el.style.display = "inline-flex";
-    el.style.alignItems = "center";
-    el.style.gap = "6px";
-    stopBrowserPolling();
-    browserPollTimer = setInterval(() => {
-      if ($("#page-scrape").classList.contains("hidden")) { stopBrowserPolling(); return; }
-      loadBrowserStatus();
-    }, 5000);
-  } catch (ex) {
-    el.textContent = "Gagal membuka browser: " + ex.message;
-    el.style.color = "var(--danger)";
-  } finally {
-    setButtonLoading(btn, false);
-  }
-});
+// (btn-browser-login diinisialisasi dalam setupScrapeEvents)
 
 // ---- Results page ----
 const leadState = { page: 1, size: 25, sort_by: "updated_at", sort_dir: "desc" };
@@ -1829,54 +1915,7 @@ function igLabel(url) {
   return url.replace(/^https?:\/\/(www\.)?instagram\.com\//i, "@").replace(/\/+$/, "");
 }
 
-$("#sel-all").addEventListener("change", () => {
-  const on = $("#sel-all").checked;
-  currentPageIds.forEach((id) => (on ? selectedLeads.add(id) : selectedLeads.delete(id)));
-  document.querySelectorAll(".lead-check").forEach((cb) => { cb.checked = on; });
-  updateBulkBar();
-});
-
-$("#btn-bulk-delete").addEventListener("click", async () => {
-  const ids = [...selectedLeads];
-  if (!ids.length) return;
-  const ok = await confirmDialog(`Hapus ${ids.length} lead terpilih secara permanen?`);
-  if (!ok) return;
-
-  const btn = $("#btn-bulk-delete");
-  setButtonLoading(btn, true, `Menghapus (${ids.length})...`);
-  const checkedRows = [];
-  document.querySelectorAll(".lead-check:checked").forEach((cb) => {
-    const row = cb.closest("tr");
-    if (row) {
-      row.classList.add("row-deleting");
-      checkedRows.push(row);
-    }
-  });
-
-  try {
-    await api("/api/leads/delete-bulk", { method: "POST", body: { ids } });
-    selectedLeads.clear();
-    updateBulkBar();
-    checkedRows.forEach((r) => r.classList.add("row-vanish"));
-    await new Promise((r) => setTimeout(r, 220));
-    loadLeads();
-  } catch (ex) {
-    alert("Hapus gagal: " + ex.message);
-    checkedRows.forEach((r) => r.classList.remove("row-deleting"));
-  } finally {
-    setButtonLoading(btn, false);
-  }
-});
-
-// Batal — kosongkan seleksi
-$("#btn-clear-selection").addEventListener("click", () => {
-  selectedLeads.clear();
-  document.querySelectorAll(".lead-check").forEach((cb) => (cb.checked = false));
-  const selAll = $("#sel-all");
-  selAll.checked = false;
-  selAll.indeterminate = false;
-  updateBulkBar();
-});
+// (Seleksi baris & bulk-delete diinisialisasi dalam setupResultsEvents)
 
 // ---- Modal konfirmasi custom (pop up konfirmasi perubahan data) ----
 let confirmResolve = null;
@@ -1901,12 +1940,6 @@ function settleConfirm(val) {
     confirmLastFocus = null;
   }
 }
-
-$("#confirm-ok").addEventListener("click", () => settleConfirm(true));
-$("#confirm-cancel").addEventListener("click", () => settleConfirm(false));
-$("#confirm-overlay").addEventListener("click", (e) => {
-  if (e.target === e.currentTarget) settleConfirm(false);
-});
 
 // ---- Modal edit data ----
 let editLastFocus = null;
@@ -1941,162 +1974,218 @@ function reloadActivePage() {
   else loadLeads();
 }
 
-$("#modal-close").addEventListener("click", closeEditModal);
-$("#edit-cancel").addEventListener("click", closeEditModal);
-$("#modal-overlay").addEventListener("click", (e) => {
-  if (e.target === e.currentTarget) closeEditModal();
-});
-
-$("#edit-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const id = $("#edit-id").value;
-  if (!id) return;
-  const payload = { status: $("#edit-status").value };
-  EDITABLE_FIELDS.forEach((f) => {
-    const el = $(`#edit-${f}`);
-    if (el) payload[f] = el.value;
+// Inisialisasi event listener interaktif modal (Konfirmasi & Edit Lead)
+function setupModalEvents() {
+  $("#confirm-ok")?.addEventListener("click", () => settleConfirm(true));
+  $("#confirm-cancel")?.addEventListener("click", () => settleConfirm(false));
+  $("#confirm-overlay")?.addEventListener("click", (e) => {
+    if (e.target === e.currentTarget) settleConfirm(false);
   });
-  const ok = await confirmDialog("Simpan perubahan data lead ini?", false);
-  if (!ok) return;
-  const submitBtn = $("#edit-submit");
-  setButtonLoading(submitBtn, true, "Menyimpan...");
-  try {
-    await api(`/api/leads/${id}`, { method: "PATCH", body: payload });
-    closeEditModal();
-    reloadActivePage();
-    if (typeof window._onModalSaveCallback === "function") {
-      try { window._onModalSaveCallback(); } catch (_) {}
-      window._onModalSaveCallback = null;
-    }
-  } catch (ex) {
-    const err = $("#edit-error");
-    err.textContent = "Gagal menyimpan: " + ex.message;
-    err.classList.remove("hidden");
-  } finally {
-    setButtonLoading(submitBtn, false);
-  }
-});
 
-// ---- Filter: Enter → Terapkan, Reset, Sorting ----
-["f-search", "f-category", "f-kota", "f-status"].forEach((id) => {
-  const el = $(`#${id}`);
-  if (!el) return;
-  el.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") { e.preventDefault(); $("#btn-filter").click(); }
+  $("#modal-close")?.addEventListener("click", closeEditModal);
+  $("#edit-cancel")?.addEventListener("click", closeEditModal);
+  $("#modal-overlay")?.addEventListener("click", (e) => {
+    if (e.target === e.currentTarget) closeEditModal();
   });
-});
 
-$("#btn-reset-filter").addEventListener("click", () => {
-  $("#f-search").value = "";
-  if ($("#f-category")) $("#f-category").value = "";
-  $("#f-kota").value = "";
-  $("#f-status").value = "";
-  leadState.sort_by = "updated_at";
-  leadState.sort_dir = "desc";
-  leadState.page = 1;
-  // kosongkan juga seleksi baris
-  selectedLeads.clear();
-  document.querySelectorAll(".lead-check").forEach((cb) => (cb.checked = false));
-  const selAll = $("#sel-all");
-  selAll.checked = false;
-  selAll.indeterminate = false;
-  updateBulkBar();
-  renderSortIndicators();
-  loadLeads();
-});
-
-// Sorting semua kolom: klik header → toggle asc/desc + keyboard Enter/Space
-document.querySelectorAll("#page-results th.th-sort").forEach((th) => {
-  th.setAttribute("tabindex", "0");
-  th.setAttribute("role", "button");
-  const doSort = () => {
-    const key = th.dataset.sort;
-    if (leadState.sort_by === key) {
-      leadState.sort_dir = leadState.sort_dir === "asc" ? "desc" : "asc";
-    } else {
-      leadState.sort_by = key;
-      leadState.sort_dir = "asc";
+  $("#edit-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id = $("#edit-id")?.value;
+    if (!id) return;
+    const payload = { status: $("#edit-status")?.value };
+    EDITABLE_FIELDS.forEach((f) => {
+      const el = $(`#edit-${f}`);
+      if (el) payload[f] = el.value;
+    });
+    const ok = await confirmDialog("Simpan perubahan data lead ini?", false);
+    if (!ok) return;
+    const submitBtn = $("#edit-submit");
+    setButtonLoading(submitBtn, true, "Menyimpan...");
+    try {
+      await api(`/api/leads/${id}`, { method: "PATCH", body: payload });
+      closeEditModal();
+      reloadActivePage();
+      if (typeof window._onModalSaveCallback === "function") {
+        try { window._onModalSaveCallback(); } catch (_) {}
+        window._onModalSaveCallback = null;
+      }
+    } catch (ex) {
+      const err = $("#edit-error");
+      if (err) {
+        err.textContent = "Gagal menyimpan: " + ex.message;
+        err.classList.remove("hidden");
+      }
+    } finally {
+      setButtonLoading(submitBtn, false);
     }
+  });
+}
+
+// Inisialisasi event listener interaktif Hasil Leads (Pencarian, Filter, Export, Import)
+function setupResultsEvents() {
+  $("#sel-all")?.addEventListener("change", () => {
+    const on = $("#sel-all").checked;
+    currentPageIds.forEach((id) => (on ? selectedLeads.add(id) : selectedLeads.delete(id)));
+    document.querySelectorAll(".lead-check").forEach((cb) => { cb.checked = on; });
+    updateBulkBar();
+  });
+
+  $("#btn-bulk-delete")?.addEventListener("click", async () => {
+    const ids = [...selectedLeads];
+    if (!ids.length) return;
+    const ok = await confirmDialog(`Hapus ${ids.length} lead terpilih secara permanen?`);
+    if (!ok) return;
+
+    const btn = $("#btn-bulk-delete");
+    setButtonLoading(btn, true, `Menghapus (${ids.length})...`);
+    const checkedRows = [];
+    document.querySelectorAll(".lead-check:checked").forEach((cb) => {
+      const row = cb.closest("tr");
+      if (row) {
+        row.classList.add("row-deleting");
+        checkedRows.push(row);
+      }
+    });
+
+    try {
+      await api("/api/leads/delete-bulk", { method: "POST", body: { ids } });
+      selectedLeads.clear();
+      updateBulkBar();
+      checkedRows.forEach((r) => r.classList.add("row-vanish"));
+      await new Promise((r) => setTimeout(r, 220));
+      loadLeads();
+    } catch (ex) {
+      alert("Hapus gagal: " + ex.message);
+      checkedRows.forEach((r) => r.classList.remove("row-deleting"));
+    } finally {
+      setButtonLoading(btn, false);
+    }
+  });
+
+  $("#btn-clear-selection")?.addEventListener("click", () => {
+    selectedLeads.clear();
+    document.querySelectorAll(".lead-check").forEach((cb) => (cb.checked = false));
+    const selAll = $("#sel-all");
+    if (selAll) {
+      selAll.checked = false;
+      selAll.indeterminate = false;
+    }
+    updateBulkBar();
+  });
+
+  ["f-search", "f-category", "f-kota", "f-status"].forEach((id) => {
+    const el = $(`#${id}`);
+    if (!el) return;
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); $("#btn-filter")?.click(); }
+    });
+  });
+
+  $("#btn-reset-filter")?.addEventListener("click", () => {
+    const fSearch = $("#f-search");
+    if (fSearch) fSearch.value = "";
+    if ($("#f-category")) $("#f-category").value = "";
+    if ($("#f-kota")) $("#f-kota").value = "";
+    if ($("#f-status")) $("#f-status").value = "";
+    leadState.sort_by = "updated_at";
+    leadState.sort_dir = "desc";
     leadState.page = 1;
+    selectedLeads.clear();
+    document.querySelectorAll(".lead-check").forEach((cb) => (cb.checked = false));
+    const selAll = $("#sel-all");
+    if (selAll) {
+      selAll.checked = false;
+      selAll.indeterminate = false;
+    }
+    updateBulkBar();
     renderSortIndicators();
     loadLeads();
-  };
-  th.addEventListener("click", doSort);
-  th.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      doSort();
-    }
   });
-});
 
-$("#btn-filter").addEventListener("click", () => { leadState.page = 1; loadLeads(); });
-$("#pg-prev").addEventListener("click", () => { leadState.page--; loadLeads(); });
-$("#pg-next").addEventListener("click", () => { leadState.page++; loadLeads(); });
-
-$("#btn-export").addEventListener("click", async () => {
-  const btn = $("#btn-export");
-  setButtonLoading(btn, true, "Mengekspor...");
-  try {
-    const res = await fetch(url(`/api/export?${leadParams()}`), { credentials: "same-origin" });
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      alert(j.detail || "Export gagal");
-      return;
-    }
-    const blob = await res.blob();
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = (res.headers.get("content-disposition") || "").match(/filename="?([^"]+)"?/)?.[1] || "leads.xlsx";
-    a.click();
-    URL.revokeObjectURL(a.href);
-  } catch (ex) { alert("Export gagal: " + ex.message); }
-  finally { setButtonLoading(btn, false); }
-});
-
-$("#btn-export-csv").addEventListener("click", async () => {
-  const btn = $("#btn-export-csv");
-  setButtonLoading(btn, true, "Mengekspor...");
-  try {
-    const res = await fetch(url(`/api/export-csv?${leadParams()}`), { credentials: "same-origin" });
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      alert(j.detail || "Export CSV gagal");
-      return;
-    }
-    const blob = await res.blob();
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = (res.headers.get("content-disposition") || "").match(/filename=\"?([^\"]+)\"?/)?.[1] || "leads.csv";
-    a.click();
-    URL.revokeObjectURL(a.href);
-  } catch (ex) { alert("Export CSV gagal: " + ex.message); }
-  finally { setButtonLoading(btn, false); }
-});
-
-$("#btn-import").addEventListener("click", () => $("#import-file").click());
-$("#import-file").addEventListener("change", async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const fd = new FormData();
-  fd.append("file", file);
-  try {
-    const r = await api(`/api/import?source=${encodeURIComponent(file.name.replace(/\.csv$/i, ""))}`, {
-      method: "POST",
-      body: fd,
+  document.querySelectorAll("#page-results th.th-sort").forEach((th) => {
+    th.setAttribute("tabindex", "0");
+    th.setAttribute("role", "button");
+    const doSort = () => {
+      const key = th.dataset.sort;
+      if (leadState.sort_by === key) {
+        leadState.sort_dir = leadState.sort_dir === "asc" ? "desc" : "asc";
+      } else {
+        leadState.sort_by = key;
+        leadState.sort_dir = "asc";
+      }
+      leadState.page = 1;
+      renderSortIndicators();
+      loadLeads();
+    };
+    th.addEventListener("click", doSort);
+    th.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        doSort();
+      }
     });
-    alert(`Import selesai: ${r.created ?? 0} baru, ${r.updated ?? 0} diperbarui.`);
-    loadLeads();
-  } catch (ex) { alert("Import gagal: " + ex.message); }
-  e.target.value = "";
-});
+  });
 
-function reloadActivePage() {
-  const hash = location.hash.replace("#", "") || "dashboard";
-  if (hash === "results") loadLeads();
-  else if (hash === "dedup") loadDedup();
-  else if (hash === "dashboard") loadDashboard();
-  else if (hash === "enrichment") loadEnrichmentJobs();
+  $("#btn-filter")?.addEventListener("click", () => { leadState.page = 1; loadLeads(); });
+  $("#pg-prev")?.addEventListener("click", () => { leadState.page--; loadLeads(); });
+  $("#pg-next")?.addEventListener("click", () => { leadState.page++; loadLeads(); });
+
+  $("#btn-export")?.addEventListener("click", async () => {
+    const btn = $("#btn-export");
+    setButtonLoading(btn, true, "Mengekspor...");
+    try {
+      const res = await fetch(url(`/api/export?${leadParams()}`), { credentials: "same-origin" });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        alert(j.detail || "Export gagal");
+        return;
+      }
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = (res.headers.get("content-disposition") || "").match(/filename="?([^"]+)"?/)?.[1] || "leads.xlsx";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (ex) { alert("Export gagal: " + ex.message); }
+    finally { setButtonLoading(btn, false); }
+  });
+
+  $("#btn-export-csv")?.addEventListener("click", async () => {
+    const btn = $("#btn-export-csv");
+    setButtonLoading(btn, true, "Mengekspor...");
+    try {
+      const res = await fetch(url(`/api/export-csv?${leadParams()}`), { credentials: "same-origin" });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        alert(j.detail || "Export CSV gagal");
+        return;
+      }
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = (res.headers.get("content-disposition") || "").match(/filename=\"?([^\"]+)\"?/)?.[1] || "leads.csv";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (ex) { alert("Export CSV gagal: " + ex.message); }
+    finally { setButtonLoading(btn, false); }
+  });
+
+  $("#btn-import")?.addEventListener("click", () => $("#import-file")?.click());
+  $("#import-file")?.addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      const r = await api(`/api/import?source=${encodeURIComponent(file.name.replace(/\.csv$/i, ""))}`, {
+        method: "POST",
+        body: fd,
+      });
+      alert(`Import selesai: ${r.created ?? 0} baru, ${r.updated ?? 0} diperbarui.`);
+      loadLeads();
+    } catch (ex) { alert("Import gagal: " + ex.message); }
+    e.target.value = "";
+  });
 }
 
 // ---- Review Duplikat & Deteksi Duplikasi Realtime ----
@@ -2627,21 +2716,24 @@ async function resolveGroup(btn) {
   }
 }
 
-$("#btn-dedup-reload").addEventListener("click", async () => {
-  const btn = $("#btn-dedup-reload");
-  setButtonLoading(btn, true, "Memuat...");
-  showDedupScreenLoading(
-    true,
-    "Memuat Review Duplikat",
-    "Menganalisis database untuk mendeteksi entitas ganda..."
-  );
-  try {
-    await loadDedup();
-  } finally {
-    setButtonLoading(btn, false);
-    showDedupScreenLoading(false);
-  }
-});
+// Inisialisasi event listener interaktif Review Duplikat
+function setupDedupEvents() {
+  $("#btn-dedup-reload")?.addEventListener("click", async () => {
+    const btn = $("#btn-dedup-reload");
+    setButtonLoading(btn, true, "Memuat...");
+    showDedupScreenLoading(
+      true,
+      "Memuat Review Duplikat",
+      "Menganalisis database untuk mendeteksi entitas ganda..."
+    );
+    try {
+      await loadDedup();
+    } finally {
+      setButtonLoading(btn, false);
+      showDedupScreenLoading(false);
+    }
+  });
+}
 
 // ---- User Management (Admin Only) ----
 async function loadUsers() {
@@ -2673,52 +2765,55 @@ async function loadUsers() {
   }
 }
 
-const formCreateUser = $("#form-create-user");
-if (formCreateUser) {
-  formCreateUser.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const btn = formCreateUser.querySelector("button[type='submit']");
-    const msg = $("#create-user-msg");
-    if (msg) {
-      msg.className = "msg-box hidden";
-      msg.textContent = "";
-    }
-    setButtonLoading(btn, true, "Menyimpan...");
-    try {
-      const username = $("#new-username")?.value.trim();
-      const full_name = $("#new-fullname")?.value.trim();
-      const password = $("#new-password")?.value;
-      await api("/api/auth/users", {
-        method: "POST",
-        body: { username, full_name, password },
-      });
-      showToast({
-        title: "Berhasil",
-        message: `Pengguna "${username}" berhasil ditambahkan.`,
-        type: "success",
-      });
+// Inisialisasi event listener interaktif Manajemen Pengguna (Admin)
+function setupUserEvents() {
+  const formCreateUser = $("#form-create-user");
+  if (formCreateUser) {
+    formCreateUser.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = formCreateUser.querySelector("button[type='submit']");
+      const msg = $("#create-user-msg");
       if (msg) {
-        msg.className = "msg-box msg-success";
-        msg.textContent = `Pengguna "${username}" berhasil dibuat.`;
-        msg.classList.remove("hidden");
+        msg.className = "msg-box hidden";
+        msg.textContent = "";
       }
-      formCreateUser.reset();
-      await loadUsers();
-    } catch (err) {
-      showToast({
-        title: "Gagal",
-        message: err.message,
-        type: "danger",
-      });
-      if (msg) {
-        msg.className = "msg-box msg-danger";
-        msg.textContent = "Gagal: " + err.message;
-        msg.classList.remove("hidden");
+      setButtonLoading(btn, true, "Menyimpan...");
+      try {
+        const username = $("#new-username")?.value.trim();
+        const full_name = $("#new-fullname")?.value.trim();
+        const password = $("#new-password")?.value;
+        await api("/api/auth/users", {
+          method: "POST",
+          body: { username, full_name, password },
+        });
+        showToast({
+          title: "Berhasil",
+          message: `Pengguna "${username}" berhasil ditambahkan.`,
+          type: "success",
+        });
+        if (msg) {
+          msg.className = "msg-box msg-success";
+          msg.textContent = `Pengguna "${username}" berhasil dibuat.`;
+          msg.classList.remove("hidden");
+        }
+        formCreateUser.reset();
+        await loadUsers();
+      } catch (err) {
+        showToast({
+          title: "Gagal",
+          message: err.message,
+          type: "danger",
+        });
+        if (msg) {
+          msg.className = "msg-box msg-danger";
+          msg.textContent = "Gagal: " + err.message;
+          msg.classList.remove("hidden");
+        }
+      } finally {
+        setButtonLoading(btn, false);
       }
-    } finally {
-      setButtonLoading(btn, false);
-    }
-  });
+    });
+  }
 }
 
 // ---- Init ----

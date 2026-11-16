@@ -1,0 +1,52 @@
+<section id="page-users" class="page hidden">
+  <div class="page-head">
+    <div>
+      <h2>Kelola Pengguna</h2>
+      <p class="muted page-sub">Manajemen akun staf/tim untuk akses scraper dan profil Google terisolasi</p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom: 24px;">
+    <h3 style="margin-bottom: 16px;">Tambah Pengguna Baru</h3>
+    <form id="form-create-user"
+      style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) 120px; gap: 12px; align-items: end;">
+      <div class="field">
+        <label for="new-username">Username</label>
+        <input id="new-username" type="text" placeholder="misal: staf_andi" required />
+      </div>
+      <div class="field">
+        <label for="new-fullname">Nama Lengkap</label>
+        <input id="new-fullname" type="text" placeholder="misal: Andi Pratama" required />
+      </div>
+      <div class="field">
+        <label for="new-password">Password</label>
+        <input id="new-password" type="password" placeholder="Password akun" required />
+      </div>
+      <button type="submit" class="btn btn-primary" style="height: 38px;">
+        <span>Tambah</span>
+      </button>
+    </form>
+    <div id="create-user-msg" class="msg-box hidden" style="margin-top: 12px;"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-bottom: 16px;">Daftar Akun Pengguna</h3>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Username</th>
+            <th>Nama Lengkap</th>
+            <th>Tanggal Dibuat</th>
+          </tr>
+        </thead>
+        <tbody id="users-table-body">
+          <tr>
+            <td colspan="4" class="muted text-center">Memuat daftar pengguna...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>

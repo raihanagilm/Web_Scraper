@@ -96,9 +96,17 @@
 │   └── seeders/                    # Database Seeders
 │       ├── __init__.py
 │       └── user_seeder.py          # seed_default_user() — buat user admin pertama
-├── public/                         # LAPIS VIEW (Static Assets & UI) — single-page
-│   ├── index.html                  # Login + app shell (dashboard/scrape/enrichment/results/dedup)
-│   ├── app.js                      # Logika frontend: fetch API, render, WebSocket progress
+├── public/                         # LAPIS VIEW (Static Assets & UI) — modular components
+│   ├── index.html                  # Shell aplikasi & navigasi (login, drawer mobile, sidebar, layout container)
+│   ├── views/                      # Partial HTML view per modul/menu (< 250 baris per file)
+│   │   ├── dashboard.html          # View Ringkasan & KPI statistik
+│   │   ├── scrape.html             # View Google Maps Scraper & Riwayat Job
+│   │   ├── enrichment.html         # View Panduan & Job Enrichment
+│   │   ├── results.html            # View Tabel Hasil Leads 8 Kolom Komposit
+│   │   ├── dedup.html              # View Review Duplikat
+│   │   ├── users.html              # View Kelola Pengguna (Admin)
+│   │   └── modals.html             # View Modal Edit Lead, Konfirmasi, & Enrichment
+│   ├── app.js                      # Logika frontend: fetch API, render, WebSocket progress, modular loader
 │   ├── style.css                   # Tema hijau Edtekno (PRD §11)
 │   ├── favicon.svg                 # Ikon resmi favicon browser
 │   └── audio/                      # Sound-effect UI frontend (assets statis)
@@ -381,6 +389,13 @@ public/app.js
 public/favicon.svg
 public/index.html
 public/style.css
+public/views/dashboard.html
+public/views/dedup.html
+public/views/enrichment.html
+public/views/modals.html
+public/views/results.html
+public/views/scrape.html
+public/views/users.html
 pyproject.toml
 requirements.txt
 routes/__init__.py
