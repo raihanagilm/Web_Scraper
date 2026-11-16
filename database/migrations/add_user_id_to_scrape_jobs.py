@@ -1,4 +1,9 @@
 """Migrasi: Menambahkan kolom user_id pada tabel scrape_jobs."""
+import os
+import sys
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
 from sqlalchemy import text
 from app.Models.base import engine
 
