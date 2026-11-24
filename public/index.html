@@ -130,7 +130,11 @@
         </button>
       </nav>
       <div class="sidebar-foot">
-        <span id="user-name" class="user-name"></span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span id="user-name" class="user-name"></span>
+          <button id="btn-sound-toggle" class="btn-icon" title="Suara Notifikasi: Aktif" aria-label="Toggle Suara Notifikasi" style="color:var(--muted); padding:4px; display:inline-flex; align-items:center;">
+          </button>
+        </div>
         <button id="btn-logout" class="btn btn-ghost btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -172,7 +176,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=27"></script>
+  <script src="app.js?v=28"></script>
 </body>
 
 </html>

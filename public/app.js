@@ -27,6 +27,8 @@ const ICONS = {
   sortDesc: `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>`,
   close: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
   spinner: `<svg class="spin-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`,
+  volume: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`,
+  volumeX: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>`,
 };
 
 // ---- Helper Animasi Loading & Status Tombol ----
@@ -162,35 +164,116 @@ function showToast({ title, message, type = "info", countBadge = null, duration 
 const BASE_PATH = window.location.pathname.startsWith("/scraper") ? "/scraper" : "";
 const url = (p) => (p.startsWith("http") || (BASE_PATH && p.startsWith(BASE_PATH))) ? p : `${BASE_PATH}${p}`;
 
-// ---- Sound effects (diputar saat job selesai / gagal) ----
-const sfx = {
-  done: new Audio(url("/audio/anjir-wibu.mp3")),
-  fail: new Audio(url("/audio/faaah.mp3")),
-};
-sfx.done.preload = "auto";
-sfx.fail.preload = "auto";
+// ---- Sound effects via Web Audio API (prosedural, profesional, zero-bandwidth) ----
+let audioCtx = null;
+
+function getAudioContext() {
+  if (!audioCtx) {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextClass) {
+      audioCtx = new AudioContextClass();
+    }
+  }
+  if (audioCtx && audioCtx.state === "suspended") {
+    audioCtx.resume().catch(() => {});
+  }
+  return audioCtx;
+}
 
 function unlockAudio() {
-  [sfx.done, sfx.fail].forEach((a) => {
-    try {
-      a.muted = true;
-      a.currentTime = 0;
-      a.play().then(() => { a.pause(); a.muted = false; }).catch(() => { a.muted = false; });
-    } catch (_) {}
-  });
+  const ctx = getAudioContext();
+  if (ctx && ctx.state === "suspended") {
+    ctx.resume().catch(() => {});
+  }
 }
 
 // Status job terakhir yang terlihat (untuk deteksi transisi terminal utk sound)
 const jobPrevStatus = new Map();
 
 function playSound(kind) {
-  const a = sfx[kind];
-  if (!a) return;
+  // Cek apakah suara dinonaktifkan (mute) oleh pengguna
+  if (localStorage.getItem("lead_scraper_sound_muted") === "true") return;
+
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
   try {
-    a.muted = false;
-    a.currentTime = 0;
-    a.play().catch(() => {});
+    const now = ctx.currentTime;
+
+    if (kind === "done") {
+      // Chime elegan menaik: Nada C5 (523.25 Hz) -> E5 (659.25 Hz) -> G5 (783.99 Hz)
+      const notes = [
+        { freq: 523.25, start: 0, duration: 0.16, gain: 0.14 },
+        { freq: 659.25, start: 0.08, duration: 0.20, gain: 0.16 },
+        { freq: 783.99, start: 0.18, duration: 0.35, gain: 0.20 },
+      ];
+
+      notes.forEach(({ freq, start, duration, gain }) => {
+        const osc = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq, now + start);
+
+        gainNode.gain.setValueAtTime(0.0001, now + start);
+        gainNode.gain.exponentialRampToValueAtTime(gain, now + start + 0.03);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + start + duration);
+
+        osc.connect(gainNode);
+        gainNode.connect(ctx.destination);
+
+        osc.start(now + start);
+        osc.stop(now + start + duration);
+      });
+    } else if (kind === "fail") {
+      // Nada peringatan lembut menurun: Nada D3 (146.83 Hz) -> Bb2 (116.54 Hz)
+      const notes = [
+        { freq: 146.83, start: 0, duration: 0.18, gain: 0.16 },
+        { freq: 116.54, start: 0.10, duration: 0.28, gain: 0.14 },
+      ];
+
+      notes.forEach(({ freq, start, duration, gain }) => {
+        const osc = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+
+        osc.type = "triangle"; // triangle lebih halus & tidak menusuk telinga
+        osc.frequency.setValueAtTime(freq, now + start);
+
+        gainNode.gain.setValueAtTime(0.0001, now + start);
+        gainNode.gain.exponentialRampToValueAtTime(gain, now + start + 0.02);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + start + duration);
+
+        osc.connect(gainNode);
+        gainNode.connect(ctx.destination);
+
+        osc.start(now + start);
+        osc.stop(now + start + duration);
+      });
+    }
   } catch (_) {}
+}
+
+function initSoundToggle() {
+  const btn = $("#btn-sound-toggle");
+  if (!btn) return;
+  const isMuted = localStorage.getItem("lead_scraper_sound_muted") === "true";
+  btn.innerHTML = isMuted ? ICONS.volumeX : ICONS.volume;
+  btn.title = isMuted ? "Suara Notifikasi: Mati (Klik untuk mengaktifkan)" : "Suara Notifikasi: Aktif (Klik untuk membisukan)";
+  btn.setAttribute("aria-label", btn.title);
+
+  btn.onclick = () => {
+    const currentlyMuted = localStorage.getItem("lead_scraper_sound_muted") === "true";
+    const nextState = !currentlyMuted;
+    localStorage.setItem("lead_scraper_sound_muted", nextState.toString());
+    btn.innerHTML = nextState ? ICONS.volumeX : ICONS.volume;
+    btn.title = nextState ? "Suara Notifikasi: Mati (Klik untuk mengaktifkan)" : "Suara Notifikasi: Aktif (Klik untuk membisukan)";
+    btn.setAttribute("aria-label", btn.title);
+
+    if (!nextState) {
+      unlockAudio();
+      playSound("done");
+    }
+  };
 }
 
 // ---- API helper ----
@@ -307,6 +390,7 @@ async function bootstrap() {
   try {
     await loadAllViews();
     initPageEventListeners();
+    initSoundToggle();
   } catch (err) {
     console.error("Gagal memuat tampilan aplikasi:", err);
     return;
